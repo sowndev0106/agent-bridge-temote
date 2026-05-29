@@ -1,19 +1,39 @@
 import { useRef, useCallback } from 'react'
+import { useMatch } from 'react-router-dom'
 import { useTerminalsStore, type TerminalTabInfo } from '../stores/terminals'
+import { useSessionsStore } from '../stores/sessions'
+import { useProjectsStore } from '../stores/projects'
 import TerminalTab from './TerminalTab'
 import { sendWsMessage } from '../lib/ws'
 
 export default function TerminalPanel() {
   const { tabs, activeTabId, panelOpen, panelHeight, removeTab, setActiveTab, togglePanel, setPanelHeight } = useTerminalsStore()
+  const sessions = useSessionsStore(s => s.sessions)
+  const match = useMatch('/project/:projectId')
+  const activeProjectId = match?.params.projectId ?? null
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
 
+  const tabProjectId = (t: TerminalTabInfo): string | null =>
+    t.type === 'session'
+      ? (sessions.find(s => s.id === t.sessionId)?.projectId ?? t.projectId ?? null)
+      : (t.projectId ?? null)
+
+  // Tab strip is filtered to the active project; on non-workspace routes show all.
+  const visibleTabs = activeProjectId
+    ? tabs.filter(t => tabProjectId(t) === activeProjectId)
+    : tabs
+
+  // The active tab must be one of the visible tabs, else fall back to the first visible.
+  const effectiveActiveId = visibleTabs.some(t => t.id === activeTabId)
+    ? activeTabId
+    : (visibleTabs[0]?.id ?? null)
+
   const handleNewTerminal = () => {
-    console.log('[TerminalPanel] handleNewTerminal clicked')
-    sendWsMessage({ type: 'terminal.create', payload: {} })
+    const project = useProjectsStore.getState().projects.find(p => p.id === activeProjectId)
+    sendWsMessage({ type: 'terminal.create', payload: { cwd: project?.path, projectId: activeProjectId } })
   }
 
   const handleCloseTab = (id: string, type: TerminalTabInfo['type']) => {
-    console.log('[TerminalPanel] handleCloseTab clicked:', id, 'type:', type)
     if (type === 'standalone') {
       sendWsMessage({ type: 'terminal.close', payload: { terminalId: id } })
     }
@@ -43,7 +63,7 @@ export default function TerminalPanel() {
     document.addEventListener('mouseup', handleUp)
   }, [panelHeight, setPanelHeight])
 
-  if (!panelOpen || tabs.length === 0) {
+  if (!panelOpen || visibleTabs.length === 0) {
     return (
       <div className="shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-base)]">
         <div className="flex items-center px-3 py-1.5">
@@ -73,14 +93,14 @@ export default function TerminalPanel() {
         onMouseDown={handleDragStart}
       />
 
-      {/* Tab bar */}
+      {/* Tab bar (filtered to active project) */}
       <div className="flex items-center border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]/80 px-1">
         <div className="rb-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {tabs.map(tab => (
+          {visibleTabs.map(tab => (
             <div
               key={tab.id}
               className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs transition-colors ${
-                activeTabId === tab.id
+                effectiveActiveId === tab.id
                   ? 'border-[var(--color-accent)] bg-[var(--color-bg-overlay)] text-[var(--color-text-primary)]'
                   : 'border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]'
               }`}
@@ -122,13 +142,14 @@ export default function TerminalPanel() {
         </div>
       </div>
 
-      {/* Terminal content */}
+      {/* Terminal content — ALL tabs stay mounted (hidden via isActive) to preserve
+          xterm state when switching projects; only the active visible one is shown. */}
       <div className="flex-1 relative overflow-hidden">
         {tabs.map(tab => (
           <TerminalTab
             key={tab.id}
             terminalId={tab.id}
-            isActive={tab.id === activeTabId}
+            isActive={tab.id === effectiveActiveId}
           />
         ))}
       </div>

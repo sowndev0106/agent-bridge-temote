@@ -74,7 +74,8 @@ export function useWebSocket() {
                 id: msg.payload.terminalId,
                 title: msg.payload.title,
                 type: 'standalone',
-                pid: msg.payload.pid
+                pid: msg.payload.pid,
+                projectId: msg.payload.projectId ?? null
               })
               break
             }

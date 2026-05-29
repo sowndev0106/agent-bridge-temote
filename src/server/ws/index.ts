@@ -75,7 +75,7 @@ export function createWsServer(httpServer: Server, sessionSecret: string, ctx?: 
         termIds?.add(info.id)
         const response: WsEvent = {
           type: 'terminal.created',
-          payload: { terminalId: info.id, title: info.title, pid: info.pid }
+          payload: { terminalId: info.id, title: info.title, pid: info.pid, projectId: msg.payload.projectId ?? null }
         }
         console.log('[Server WS] Standalone terminal created:', info.id, 'sending response')
         ws.send(JSON.stringify(response))
