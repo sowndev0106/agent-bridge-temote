@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import LoginPage from './pages/LoginPage'
-import Dashboard from './pages/Dashboard'
+import Overview from './pages/Overview'
+import ProjectWorkspace from './pages/ProjectWorkspace'
 import SettingsPage from './pages/SettingsPage'
 import Layout from './components/Layout'
 import { api, setCsrfToken } from './lib/api'
@@ -40,7 +41,8 @@ function AppInner() {
 
   return (
     <Routes>
-      <Route path="/" element={<Layout><Dashboard /></Layout>} />
+      <Route path="/" element={<Layout><Overview /></Layout>} />
+      <Route path="/project/:projectId" element={<Layout><ProjectWorkspace /></Layout>} />
       <Route path="/settings" element={<Layout><SettingsPage /></Layout>} />
     </Routes>
   )
