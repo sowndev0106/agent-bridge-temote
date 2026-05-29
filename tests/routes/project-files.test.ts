@@ -7,7 +7,11 @@ import {
   listProjectFiles,
   resolveProjectChildPath
 } from '../../src/server/routes/project-files.js'
-import type { Project } from '../../src/types.js'
+import type { Project, AppConfig, FileEntry } from '../../types.js'
+import { hashPassword, generateSecret } from '../../src/server/core/auth.js'
+import { createServer } from '../../src/server/index.js'
+import { CONFIG_DIR, CONFIG_FILE, PROJECTS_FILE } from '../../src/server/core/paths.js'
+import { atomicWrite } from '../../src/server/core/persistence.js'
 
 let root: string
 let outside: string
@@ -97,5 +101,94 @@ describe('getProjectFilePreview', () => {
     const preview = await getProjectFilePreview(project, 'src')
     expect(preview.type).toBe('directory')
     expect(preview.content).toBeNull()
+  })
+})
+
+describe('projectFileRoutes', () => {
+  it('requires auth through the protected route group', async () => {
+    const server = await createServer()
+    await server.fastify.ready()
+    const res = await server.fastify.inject({ method: 'GET', url: '/api/projects/project-1/files' })
+    expect(res.statusCode).toBe(401)
+    await server.fastify.close()
+  })
+
+  it('serves listings, previews, and updates for authenticated users', async () => {
+    const password = 'file-route-pass'
+    const cfg: AppConfig = {
+      port: 4099,
+      host: '127.0.0.1',
+      password: await hashPassword(password),
+      sessionSecret: generateSecret(),
+      sessionTTL: 3600,
+      linkExtractTimeout: 10,
+      maxConcurrentSessions: 10,
+      keepSessionLogsLines: 500,
+      agents: {},
+      globalEnv: {},
+      logLevel: 'error'
+    }
+    await mkdir(CONFIG_DIR, { recursive: true })
+    await atomicWrite(CONFIG_FILE, cfg)
+    await atomicWrite(PROJECTS_FILE, [project])
+
+    const server = await createServer()
+    await server.fastify.ready()
+    
+    // Login
+    const login = await server.fastify.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { password }
+    })
+    const cookies = login.cookies.map(c => `${c.name}=${c.value}`).join('; ')
+    const csrfToken = login.json().data.csrfToken
+
+    // GET files listing
+    const list = await server.fastify.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/files`,
+      headers: { cookie: cookies }
+    })
+    expect(list.statusCode).toBe(200)
+    expect(list.json().data.entries.some((e: FileEntry) => e.name === 'README.md')).toBe(true)
+
+    // GET file preview
+    const preview = await server.fastify.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/files/preview?path=${encodeURIComponent('README.md')}`,
+      headers: { cookie: cookies }
+    })
+    expect(preview.statusCode).toBe(200)
+    expect(preview.json().data.content).toContain('# RemoteBridge')
+
+    // PUT file edit (write)
+    const edit = await server.fastify.inject({
+      method: 'PUT',
+      url: `/api/projects/${project.id}/files?path=${encodeURIComponent('README.md')}`,
+      headers: { cookie: cookies, 'x-csrf-token': csrfToken },
+      payload: { content: '# RemoteBridge - Edited\n' }
+    })
+    expect(edit.statusCode).toBe(200)
+    expect(edit.json().ok).toBe(true)
+
+    // Re-verify preview content is updated
+    const previewAfter = await server.fastify.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/files/preview?path=${encodeURIComponent('README.md')}`,
+      headers: { cookie: cookies }
+    })
+    expect(previewAfter.json().data.content).toContain('# RemoteBridge - Edited')
+
+    // Path confinement escape attempt via API
+    const badReq = await server.fastify.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/files?path=${encodeURIComponent('../secret.txt')}`,
+      headers: { cookie: cookies }
+    })
+    expect(badReq.statusCode).toBe(400)
+    expect(badReq.json().error.code).toBe('invalid_path')
+
+    await server.fastify.close()
   })
 })

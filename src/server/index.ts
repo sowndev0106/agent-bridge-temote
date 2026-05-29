@@ -12,6 +12,7 @@ import { makeCsrfCheckHook } from './middleware/csrf-check.js'
 import { authRoutes } from './routes/auth.js'
 import { configRoutes } from './routes/config.js'
 import { projectRoutes } from './routes/projects.js'
+import { projectFileRoutes } from './routes/project-files.js'
 import { fsRoutes } from './routes/fs.js'
 import { agentRoutes } from './routes/agents.js'
 import { sessionRoutes } from './routes/sessions.js'
@@ -106,6 +107,7 @@ export async function createServer() {
     app.addHook('preHandler', requireSession)
     app.addHook('preHandler', requireCsrf)
     await app.register((a) => projectRoutes(a, manager))  // manager needed for the delete-in-use guard (H15)
+    await app.register(projectFileRoutes)
     await app.register(fsRoutes)
     await app.register(agentRoutes)
     await app.register(configRoutes)

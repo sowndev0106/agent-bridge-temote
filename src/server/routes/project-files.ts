@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { lstat, readdir, readFile, realpath, open } from 'fs/promises'
+import { lstat, readdir, readFile, realpath, open, writeFile } from 'fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'path'
 import { readJson } from '../core/persistence.js'
 import { PROJECTS_FILE } from '../core/paths.js'
@@ -165,6 +165,33 @@ export async function projectFileRoutes(fastify: FastifyInstance) {
 
     try {
       return { ok: true, data: await getProjectFilePreview(project, path) }
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Path not found' } })
+      if (code === 'EACCES') return reply.code(403).send({ ok: false, error: { code: 'forbidden', message: 'Permission denied' } })
+      return reply.code(400).send({ ok: false, error: { code: 'invalid_path', message: e instanceof Error ? e.message : 'Invalid path' } })
+    }
+  })
+
+  fastify.put('/api/projects/:projectId/files', async (request, reply) => {
+    const { projectId } = request.params as { projectId: string }
+    const { path } = request.query as { path?: string }
+    if (!path) return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"path" is required' } })
+
+    const { content } = request.body as { content: string }
+    if (typeof content !== 'string') return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"content" must be a string' } })
+
+    const project = await findProject(projectId)
+    if (!project) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
+
+    try {
+      const resolved = await resolveProjectChildPath(project, path)
+      const stats = await lstat(resolved.absolutePath).catch(() => null)
+      if (stats && stats.isDirectory()) {
+        return reply.code(400).send({ ok: false, error: { code: 'invalid_path', message: 'Cannot write to a directory' } })
+      }
+      await writeFile(resolved.absolutePath, content, 'utf-8')
+      return { ok: true, data: { success: true } }
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code
       if (code === 'ENOENT') return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Path not found' } })
