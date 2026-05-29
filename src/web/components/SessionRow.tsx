@@ -1,3 +1,4 @@
+import { ExternalLink, RotateCw, ScrollText, Square, SquareTerminal, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
 import { useUIStore } from '../stores/ui'
@@ -6,13 +7,13 @@ import { sendWsMessage } from '../lib/ws'
 import { shortId, formatDuration, formatClock } from '../lib/format'
 import type { Session } from '../../types'
 
-const STATE_COLORS = {
+const DOT = {
   launching: 'text-[var(--color-launching)]',
   running: 'text-[var(--color-running)]',
   stopped: 'text-[var(--color-stopped)]',
   failed: 'text-[var(--color-failed)]'
 } as const
-const STATE_ICONS = { launching: '◌', running: '●', stopped: '○', failed: '⚠' }
+const ICON = { launching: '◌', running: '●', stopped: '○', failed: '⚠' }
 const BORDER = {
   running: 'border-l-[var(--color-running)]',
   launching: 'border-l-[var(--color-launching)]',
@@ -20,11 +21,14 @@ const BORDER = {
   stopped: 'border-l-[var(--color-stopped)]'
 } as const
 
-function timeLabel(s: Session): string {
-  if (s.state === 'running' || s.state === 'launching') return `running ${formatDuration(s.startedAt)}`
-  const dur = s.stoppedAt ? ` · ran ${formatDuration(s.startedAt, s.stoppedAt)}` : ''
-  return `${formatClock(s.startedAt)}${dur}`
+function meta(s: Session): string {
+  const time = s.state === 'running' || s.state === 'launching'
+    ? `running ${formatDuration(s.startedAt)}`
+    : `${formatClock(s.startedAt)}${s.stoppedAt ? ` · ran ${formatDuration(s.startedAt, s.stoppedAt)}` : ''}`
+  return s.pid ? `${time} · pid ${s.pid}` : time
 }
+
+const ACTION = 'rb-icon-button h-8 min-h-8 w-8 min-w-8'
 
 export default function SessionRow({ session }: { session: Session }) {
   const { updateSession, removeSession } = useSessionsStore()
@@ -55,55 +59,58 @@ export default function SessionRow({ session }: { session: Session }) {
   return (
     <article
       data-testid="session-row"
-      className={`group flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] p-3 shadow-[var(--shadow-card)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-hover)] sm:flex-row sm:items-center sm:gap-3 ${BORDER[session.state]}`}
+      className={`group flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] px-3 py-2 transition-colors hover:bg-[var(--color-bg-hover)] ${BORDER[session.state]}`}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span
-          className={`shrink-0 text-[13px] ${STATE_COLORS[session.state]}`}
-          aria-hidden="true"
-          style={session.state === 'running' ? { animation: 'rb-pulse 3s ease-in-out infinite' } : undefined}
-        >
-          {STATE_ICONS[session.state]}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm text-[var(--color-text-primary)]">
-            <span className="rb-mono font-medium">{shortId(session.id)}</span>
-            <span className="text-[var(--color-text-muted)]"> · {session.agentId}</span>
-          </p>
-          <p className="truncate text-[11px] text-[var(--color-text-muted)]">{timeLabel(session)}</p>
-        </div>
+      <span
+        className={`shrink-0 text-[11px] ${DOT[session.state]}`}
+        aria-hidden="true"
+        title={session.state}
+        style={session.state === 'running' ? { animation: 'rb-pulse 3s ease-in-out infinite' } : undefined}
+      >
+        {ICON[session.state]}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm">
+          <span className="rb-mono font-medium text-[var(--color-text-primary)]">{shortId(session.id)}</span>
+          <span className="text-[var(--color-text-muted)]"> · {session.agentId}</span>
+        </p>
+        <p className={`truncate text-[11px] ${session.state === 'failed' ? 'text-[var(--color-failed)]' : 'text-[var(--color-text-muted)]'}`}>
+          {session.state === 'failed' ? (session.error ?? 'Unknown error') : meta(session)}
+        </p>
       </div>
 
-      {session.state === 'failed' && (
-        <p className="min-w-0 break-words text-xs text-[var(--color-failed)] sm:max-w-[40%]">{session.error ?? 'Unknown error'}</p>
-      )}
-
-      {session.state === 'running' && session.remoteLink && (
-        <a href={session.remoteLink} target="_blank" rel="noopener noreferrer" className="rb-primary-button shrink-0 px-3">
-          <span className="truncate">Open Remote</span><span aria-hidden="true">↗</span>
-        </a>
-      )}
-
-      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+      <div className="flex shrink-0 items-center gap-1">
+        {session.state === 'running' && session.remoteLink && (
+          <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
+            className={`${ACTION} border-[var(--color-accent)] text-[var(--color-accent)]`}
+            title="Open remote control" aria-label="Open remote control">
+            <ExternalLink size={15} />
+          </a>
+        )}
         {session.state === 'running' && (
-          <button type="button" onClick={stop} className="rb-ghost-button px-3">Stop</button>
-        )}
-        {(session.state === 'stopped' || session.state === 'failed') && (
-          <>
-            <button type="button" onClick={restart} className="rb-ghost-button px-3">Restart</button>
-            <button type="button" onClick={remove} className="rb-ghost-button px-3 text-[var(--color-failed)]">Delete</button>
-          </>
-        )}
-        {live && (
-          <button type="button" onClick={openTerminal} className="rb-ghost-button px-3 text-[var(--color-accent)]"
-            title="Open interactive terminal" aria-label={`Open terminal for session ${session.id}`}>
-            Term
+          <button type="button" onClick={stop} className={ACTION} title="Stop" aria-label="Stop session">
+            <Square size={14} />
           </button>
         )}
-        <button type="button" onClick={() => setLogsSessionId(session.id)} className="rb-ghost-button px-3"
-          aria-label={`View logs for session ${session.id}`}>
-          Logs
+        {(session.state === 'stopped' || session.state === 'failed') && (
+          <button type="button" onClick={restart} className={ACTION} title="Restart" aria-label="Restart session">
+            <RotateCw size={14} />
+          </button>
+        )}
+        {live && (
+          <button type="button" onClick={openTerminal} className={`${ACTION} text-[var(--color-accent)]`} title="Open terminal" aria-label="Open terminal">
+            <SquareTerminal size={15} />
+          </button>
+        )}
+        <button type="button" onClick={() => setLogsSessionId(session.id)} className={ACTION} title="Logs" aria-label="View logs">
+          <ScrollText size={15} />
         </button>
+        {(session.state === 'stopped' || session.state === 'failed') && (
+          <button type="button" onClick={remove} className={`${ACTION} text-[var(--color-failed)]`} title="Delete" aria-label="Delete session">
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     </article>
   )
