@@ -48,30 +48,49 @@ export default function LogsDrawer() {
   if (!logsSessionId) return null
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={() => setLogsSessionId(null)}>
-      <div className="bg-gray-900 w-full max-w-xl h-full flex flex-col shadow-2xl border-l border-gray-800" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-800">
-          <h2 className="text-sm font-semibold text-white">Logs — {session?.agentId ?? logsSessionId}</h2>
-          <div className="flex items-center gap-3">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={() => setLogsSessionId(null)}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Logs - ${session?.agentId ?? logsSessionId}`}
+        className="flex h-full w-full max-w-full flex-col border-l border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] shadow-2xl sm:max-w-xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] px-3 py-3 sm:px-4">
+          <h2 className="min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)]">
+            Logs - {session?.agentId ?? logsSessionId}
+          </h2>
+          <div className="flex shrink-0 items-center gap-2">
             {session && (session.state === 'launching' || session.state === 'running') && (
               <button
+                type="button"
                 onClick={openInTerminal}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors flex items-center gap-1"
+                className="rb-ghost-button px-2 text-[var(--color-accent)] sm:px-3"
               >
-                <span>⚡</span>
-                <span>Open Terminal</span>
+                <span className="hidden sm:inline">Open Terminal</span>
+                <span className="sm:hidden">Term</span>
               </button>
             )}
-            <button onClick={() => setLogsSessionId(null)} className="text-gray-500 hover:text-white text-lg font-bold leading-none">×</button>
+            <button
+              type="button"
+              onClick={() => setLogsSessionId(null)}
+              className="rb-icon-button"
+              aria-label="Close logs"
+              title="Close logs"
+            >
+              x
+            </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs text-gray-300 space-y-0.5">
+        <div className="rb-scrollbar rb-safe-bottom min-h-0 flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-5 text-[var(--color-text-code)] sm:p-4 sm:text-xs">
           {session?.logs.map((line, i) => (
-            <p key={i} className={line.match(/https?:\/\//) ? 'text-blue-400 font-semibold' : ''}>{line}</p>
+            <p key={i} className={`min-w-0 break-words ${line.match(/https?:\/\//) ? 'font-semibold text-[var(--color-accent)]' : ''}`}>
+              {line}
+            </p>
           ))}
           <div ref={bottomRef} />
         </div>
-      </div>
+      </section>
     </div>
   )
 }

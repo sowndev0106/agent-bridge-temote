@@ -23,25 +23,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="bg-gray-900 rounded-xl p-8 w-80 shadow-xl">
-        <h1 className="text-2xl font-bold text-white text-center mb-6">🌉 RemoteBridge</h1>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg-base)] px-4 py-8">
+      <div className="w-full max-w-sm rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 shadow-[var(--shadow-modal)] sm:p-8">
+        <div className="mb-6 flex items-center justify-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-dim)] font-mono text-xs font-semibold text-[var(--color-accent)]">RB</span>
+          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">RemoteBridge</h1>
+        </div>
         <form onSubmit={submit} className="space-y-4">
           <input
             type="password"
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
+            className="rb-input"
             autoFocus
           />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="break-words text-sm text-[var(--color-failed)]">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
+            className="rb-primary-button w-full disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? 'Signing in…' : 'Sign In'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

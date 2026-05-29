@@ -26,30 +26,30 @@ export default function SettingsPage() {
   }
 
   const field = (key: keyof SafeConfig, label: string, type = 'text') => (
-    <div className="flex items-center justify-between">
-      <label className="text-sm text-gray-400 w-36">{label}</label>
+    <label className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-3">
+      <span className="text-sm text-[var(--color-text-secondary)]">{label}</span>
       <input
         type={type}
         value={String(form[key] ?? '')}
         onChange={e => setForm(f => ({ ...f, [key]: type === 'number' ? Number(e.target.value) : e.target.value }))}
-        className="w-48 px-3 py-1.5 bg-gray-800 text-white rounded-lg border border-gray-700 text-sm focus:border-blue-500 focus:outline-none"
+        className="rb-input"
       />
-    </div>
+    </label>
   )
 
   return (
-    <div className="max-w-lg">
-      <h1 className="text-lg font-semibold text-white mb-6">⚙ Settings</h1>
-      <div className="bg-gray-900 rounded-xl p-6 space-y-6">
+    <div className="mx-auto w-full max-w-2xl">
+      <h1 className="mb-5 text-lg font-semibold text-[var(--color-text-primary)]">Settings</h1>
+      <div className="space-y-6 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] p-4 shadow-[var(--shadow-card)] sm:p-6">
         <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Network</p>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Network</p>
           <div className="space-y-3">
             {field('port', 'Port', 'number')}
             {field('host', 'Host')}
           </div>
         </section>
         <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Session Behavior</p>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Session Behavior</p>
           <div className="space-y-3">
             {field('linkExtractTimeout', 'Link Timeout (s)', 'number')}
             {field('maxConcurrentSessions', 'Max Sessions', 'number')}
@@ -57,25 +57,25 @@ export default function SettingsPage() {
           </div>
         </section>
         <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Logging</p>
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-400 w-36">Log Level</label>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Logging</p>
+          <label className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-3">
+            <span className="text-sm text-[var(--color-text-secondary)]">Log Level</span>
             <select
               value={String(form.logLevel ?? 'info')}
               onChange={e => setForm(f => ({ ...f, logLevel: e.target.value as SafeConfig['logLevel'] }))}
-              className="w-48 px-3 py-1.5 bg-gray-800 text-white rounded-lg border border-gray-700 text-sm"
+              className="rb-input"
             >
               {['debug', 'info', 'warn', 'error'].map(l => <option key={l}>{l}</option>)}
             </select>
-          </div>
+          </label>
         </section>
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button onClick={() => { setForm(config); setError('') }} className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700">
+        {error && <p className="break-words text-sm text-[var(--color-failed)]">{error}</p>}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+          <button type="button" onClick={() => { setForm(config); setError('') }} className="rb-ghost-button px-4">
             Reset
           </button>
-          <button onClick={save} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
-            {saved ? '✓ Saved' : 'Save'}
+          <button type="button" onClick={save} className="rb-primary-button px-4">
+            {saved ? 'Saved' : 'Save'}
           </button>
         </div>
       </div>

@@ -45,14 +45,16 @@ export default function TerminalPanel() {
 
   if (!panelOpen || tabs.length === 0) {
     return (
-      <div className="border-t border-gray-800 bg-gray-950 flex-shrink-0">
+      <div className="shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-base)]">
         <div className="flex items-center px-3 py-1.5">
           <button
+            type="button"
             onClick={handleNewTerminal}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            className="rb-ghost-button min-h-8 px-2"
             title="New Terminal"
+            aria-label="Open new terminal"
           >
-            <span className="text-base leading-none">⌘</span>
+            <span aria-hidden="true">$</span>
             <span>Terminal</span>
           </button>
         </div>
@@ -62,34 +64,34 @@ export default function TerminalPanel() {
 
   return (
     <div
-      className="border-t border-gray-700 bg-gray-950 flex flex-col flex-shrink-0"
-      style={{ height: `${panelHeight}vh` }}
+      className="flex shrink-0 flex-col border-t border-[var(--color-border-default)] bg-[var(--color-bg-base)]"
+      style={{ height: `clamp(220px, ${panelHeight}vh, 70dvh)` }}
     >
       {/* Drag handle */}
       <div
-        className="h-1 cursor-row-resize bg-gray-800 hover:bg-blue-500/50 transition-colors flex-shrink-0"
+        className="h-1 flex-shrink-0 cursor-row-resize bg-[var(--color-bg-overlay)] transition-colors hover:bg-[var(--color-accent)]/50"
         onMouseDown={handleDragStart}
       />
 
       {/* Tab bar */}
-      <div className="flex items-center bg-gray-900/80 border-b border-gray-800 flex-shrink-0 px-1">
-        <div className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
+      <div className="flex items-center border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]/80 px-1">
+        <div className="rb-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {tabs.map(tab => (
             <div
               key={tab.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-b-2 transition-colors group ${
+              className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs transition-colors ${
                 activeTabId === tab.id
-                  ? 'border-blue-500 text-white bg-gray-800/50'
-                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+                  ? 'border-[var(--color-accent)] bg-[var(--color-bg-overlay)] text-[var(--color-text-primary)]'
+                  : 'border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]'
               }`}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span className="font-mono truncate max-w-[120px]">
+              <span className="max-w-[120px] truncate font-mono">
                 {tab.type === 'session' ? `⚡ ${tab.title}` : `$ ${tab.title}`}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id, tab.type) }}
-                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition-opacity ml-1"
+                className="ml-1 text-[var(--color-text-muted)] opacity-0 transition-opacity hover:text-[var(--color-text-primary)] group-hover:opacity-100"
               >
                 ×
               </button>
@@ -97,21 +99,24 @@ export default function TerminalPanel() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 ml-2 flex-shrink-0 px-2 py-1">
+        <div className="flex shrink-0 items-center gap-2 px-2 py-1">
           <button
+            type="button"
             onClick={handleNewTerminal}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-2.5 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
+            className="rb-primary-button min-h-8 px-2.5 text-xs"
             title="New Standalone Terminal"
+            aria-label="Open new terminal"
           >
             <span>+</span>
-            <span>Shell</span>
+            <span className="hidden sm:inline">Shell</span>
           </button>
           <button
+            type="button"
             onClick={togglePanel}
-            className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-semibold text-xs px-2.5 py-1 rounded transition-colors flex items-center gap-1"
+            className="rb-ghost-button min-h-8 px-2.5 text-xs"
             title="Collapse Panel"
+            aria-label="Collapse terminal panel"
           >
-            <span>▼</span>
             <span>Hide</span>
           </button>
         </div>

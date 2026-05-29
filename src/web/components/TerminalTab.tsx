@@ -105,6 +105,16 @@ export default function TerminalTab({ terminalId, isActive }: TerminalTabProps) 
     }
   }, [isActive])
 
+  useEffect(() => {
+    const refit = () => fitAddonRef.current?.fit()
+    window.addEventListener('resize', refit)
+    window.addEventListener('orientationchange', refit)
+    return () => {
+      window.removeEventListener('resize', refit)
+      window.removeEventListener('orientationchange', refit)
+    }
+  }, [])
+
   return (
     <div
       ref={containerRef}

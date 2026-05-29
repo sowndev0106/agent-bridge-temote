@@ -7,10 +7,10 @@ import { sendWsMessage } from '../lib/ws'
 import type { Session } from '../../types'
 
 const STATE_COLORS = {
-  launching: 'text-yellow-400',
-  running: 'text-green-400',
-  stopped: 'text-gray-500',
-  failed: 'text-red-400'
+  launching: 'text-[var(--color-launching)]',
+  running: 'text-[var(--color-running)]',
+  stopped: 'text-[var(--color-stopped)]',
+  failed: 'text-[var(--color-failed)]'
 } as const
 
 const STATE_ICONS = { launching: '◌', running: '●', stopped: '○', failed: '⚠' }
@@ -62,20 +62,31 @@ export default function SessionCard({ session }: { session: Session }) {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-medium text-white text-sm">{projectName}</p>
-          <p className="text-xs text-gray-500">{session.agentId}</p>
+    <article
+      data-testid="session-card"
+      className={`flex min-w-0 flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] p-3 shadow-[var(--shadow-card)] sm:p-4 ${
+        session.state === 'running'
+          ? 'border-l-[var(--color-running)]'
+          : session.state === 'launching'
+            ? 'border-l-[var(--color-launching)]'
+            : session.state === 'failed'
+              ? 'border-l-[var(--color-failed)]'
+              : 'border-l-[var(--color-stopped)]'
+      }`}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{projectName}</p>
+          <p className="rb-mono mt-0.5 truncate text-[11px] text-[var(--color-text-muted)]">{session.agentId}</p>
         </div>
-        <span className={`text-xs font-mono ${STATE_COLORS[session.state]}`}>
+        <span className={`rb-mono shrink-0 whitespace-nowrap text-[11px] ${STATE_COLORS[session.state]}`}>
           {STATE_ICONS[session.state]} {session.state.charAt(0).toUpperCase() + session.state.slice(1)}
         </span>
       </div>
 
       {session.state === 'launching' && (
-        <div className="w-full bg-gray-800 rounded-full h-1">
-          <div className="bg-yellow-400 h-1 rounded-full animate-pulse w-1/2" />
+        <div className="overflow-hidden rounded-full bg-[var(--color-bg-overlay)]">
+          <div className="h-1.5 w-1/2 rounded-full bg-[var(--color-launching)]" style={{ animation: 'rb-shimmer 1.4s ease-in-out infinite' }} />
         </div>
       )}
 
@@ -84,48 +95,53 @@ export default function SessionCard({ session }: { session: Session }) {
           href={session.remoteLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="block text-center py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
+          className="rb-primary-button w-full px-3"
         >
-          Open Remote Control ↗
+          <span className="truncate">Open Remote Control</span>
+          <span aria-hidden="true">↗</span>
         </a>
       )}
 
       {session.state === 'failed' && (
-        <p className="text-xs text-red-400">{session.error ?? 'Unknown error'}</p>
+        <p className="min-w-0 break-words text-xs text-[var(--color-failed)]">{session.error ?? 'Unknown error'}</p>
       )}
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {session.state === 'running' && (
-          <button onClick={stop} className="flex-1 text-xs py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300">
-            ■ Stop
+          <button type="button" onClick={stop} className="rb-ghost-button px-3 text-[var(--color-text-secondary)] sm:flex-1">
+            Stop
           </button>
         )}
         {(session.state === 'stopped' || session.state === 'failed') && (
           <>
-            <button onClick={restart} className="flex-1 text-xs py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300">
-              ↺ Restart
+            <button type="button" onClick={restart} className="rb-ghost-button px-3 sm:flex-1">
+              Restart
             </button>
-            <button onClick={remove} className="text-xs py-1.5 px-3 bg-gray-800 hover:bg-red-900/40 rounded-lg text-red-400">
-              ✕
+            <button type="button" onClick={remove} className="rb-ghost-button px-3 text-[var(--color-failed)]">
+              Delete
             </button>
           </>
         )}
         {(session.state === 'launching' || session.state === 'running') && (
           <button
+            type="button"
             onClick={openTerminal}
-            className="text-xs py-1.5 px-3 bg-blue-600/30 hover:bg-blue-600/50 rounded-lg text-blue-400 font-bold"
-            title="Open Interactive Terminal"
+            className="rb-ghost-button px-3 text-[var(--color-accent)]"
+            title="Open interactive terminal"
+            aria-label={`Open terminal for ${session.agentId} session ${session.id}`}
           >
-            ⚡ Term
+            Term
           </button>
         )}
         <button
+          type="button"
           onClick={() => setLogsSessionId(session.id)}
-          className="text-xs py-1.5 px-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400"
+          className="rb-ghost-button px-3"
+          aria-label={`View logs for ${session.agentId} session ${session.id}`}
         >
           Logs
         </button>
       </div>
-    </div>
+    </article>
   )
 }
