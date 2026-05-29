@@ -60,14 +60,14 @@ export interface AppConfig {
 export type TerminalClientEvent =
   | { type: 'terminal.input';  payload: { terminalId: string; data: string } }
   | { type: 'terminal.resize'; payload: { terminalId: string; cols: number; rows: number } }
-  | { type: 'terminal.create'; payload: { cwd?: string } }
+  | { type: 'terminal.create'; payload: { cwd?: string; projectId?: string | null } }
   | { type: 'terminal.close';  payload: { terminalId: string } }
   | { type: 'terminal.attach'; payload: { sessionId: string } }
 
 /** Server → Client terminal messages */
 export type TerminalServerEvent =
   | { type: 'terminal.data';     payload: { terminalId: string; data: string } }
-  | { type: 'terminal.created';  payload: { terminalId: string; title: string; pid: number } }
+  | { type: 'terminal.created';  payload: { terminalId: string; title: string; pid: number; projectId?: string | null } }
   | { type: 'terminal.closed';   payload: { terminalId: string } }
   | { type: 'terminal.attached'; payload: { terminalId: string; sessionId: string } }
 

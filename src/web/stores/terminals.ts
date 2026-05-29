@@ -5,6 +5,7 @@ export interface TerminalTabInfo {
   title: string
   type: 'standalone' | 'session'
   sessionId?: string      // set when type === 'session'
+  projectId?: string | null
   pid?: number
 }
 
