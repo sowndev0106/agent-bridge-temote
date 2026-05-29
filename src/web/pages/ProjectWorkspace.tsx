@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { Plus, TerminalSquare } from 'lucide-react'
+import { Plus, TerminalSquare, Trash2 } from 'lucide-react'
+import { api } from '../lib/api'
 import { useProjectsStore } from '../stores/projects'
 import { useSessionsStore } from '../stores/sessions'
 import { useUIStore } from '../stores/ui'
@@ -15,8 +16,9 @@ import type { Session } from '../../types'
 export default function ProjectWorkspace() {
   const { projectId } = useParams()
   const { projects } = useProjectsStore()
-  const { sessions } = useSessionsStore()
+  const { sessions, removeSession } = useSessionsStore()
   const { setAgentSelectorProjectId } = useUIStore()
+  const [clearing, setClearing] = useState(false)
 
   const project = projects.find(p => p.id === projectId)
 
@@ -34,6 +36,10 @@ export default function ProjectWorkspace() {
 
   const total = groups.reduce((n, [, arr]) => n + arr.length, 0)
   const running = sessions.filter(s => s.projectId === projectId && (s.state === 'running' || s.state === 'launching')).length
+  const clearable = useMemo(
+    () => sessions.filter(s => s.projectId === projectId && (s.state === 'stopped' || s.state === 'failed')),
+    [sessions, projectId]
+  )
 
   if (!project) {
     return projects.length === 0
@@ -42,6 +48,19 @@ export default function ProjectWorkspace() {
   }
 
   const openShell = () => sendWsMessage({ type: 'terminal.create', payload: { cwd: project.path, projectId: project.id } })
+
+  const clearStopped = async () => {
+    if (clearable.length === 0 || clearing) return
+    if (!window.confirm(`Delete ${clearable.length} stopped session${clearable.length === 1 ? '' : 's'}? This cannot be undone.`)) return
+    setClearing(true)
+    // Fire all deletes in parallel; remove each from the store only when its
+    // request succeeds, so a partial failure leaves the still-present ones in view.
+    await Promise.allSettled(clearable.map(async s => {
+      await api.deleteSession(s.id)
+      removeSession(s.id)
+    }))
+    setClearing(false)
+  }
 
   return (
     <>
@@ -60,11 +79,20 @@ export default function ProjectWorkspace() {
         </header>
 
         <section className="flex flex-col gap-5">
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-secondary)]">Sessions</h2>
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {total} total{running > 0 && <span className="text-[var(--color-running)]"> · {running} running</span>}
-            </span>
+            <div className="flex items-center gap-3">
+              {clearable.length > 0 && (
+                <button type="button" onClick={clearStopped} disabled={clearing}
+                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-failed)] disabled:cursor-not-allowed disabled:opacity-50"
+                  title={`Delete ${clearable.length} stopped/failed session${clearable.length === 1 ? '' : 's'}`}>
+                  <Trash2 size={13} /> {clearing ? 'Clearing…' : `Clear stopped (${clearable.length})`}
+                </button>
+              )}
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {total} total{running > 0 && <span className="text-[var(--color-running)]"> · {running} running</span>}
+              </span>
+            </div>
           </div>
 
           {total === 0 ? (
