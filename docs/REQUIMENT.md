@@ -48,9 +48,10 @@ beyond registering the new agent in the catalog.
 
 ## Users & Use Case
 
-Single user (the developer). Runs on the developer's local Ubuntu machine.
-Accessible from any browser on the LAN or internet (`0.0.0.0` by default).
-No cloud relay. No multi-tenancy. Auth is one app-level password.
+Single user (the developer). Runs on the developer's local machine — Linux,
+macOS, or Windows. Accessible from any browser on the LAN or internet
+(`0.0.0.0` by default). No cloud relay. No multi-tenancy. Auth is one
+app-level password.
 
 ## Tech Stack
 
@@ -59,9 +60,10 @@ No cloud relay. No multi-tenancy. Auth is one app-level password.
 | Backend | Node.js 20+ / Fastify |
 | Frontend | React 18 + Vite + TailwindCSS (served as static files by Fastify) |
 | Realtime | WebSocket (`ws` library) |
-| Persistence | JSON files at `~/.remotebridge/` |
+| Persistence | JSON files at the platform config dir (see Configuration Reference) |
 | Process management | PM2 (external — manages RemoteBridge itself, not agent sessions) |
 | Distribution | `npm install -g remotebridge` |
+| Cross-platform open | `open` (macOS) / `xdg-open` (Linux) / `start` (Windows) — via `open` npm package |
 
 ---
 
@@ -92,6 +94,8 @@ expected type, and a pointer to `remotebridge help`.
 ### FR1. Project Management
 
 - User can add, edit, delete, and list projects via the web UI.
+- A project **cannot be deleted while it has a launching/running session** — the API
+  returns `409 project_in_use`; the user must stop those sessions first (H15).
 - Each project stores:
   - `name` — display name
   - `path` — absolute filesystem path (validated to exist on save)
@@ -116,13 +120,15 @@ expected type, and a pointer to `remotebridge help`.
 - Merge environments in order: `process.env` → `config.globalEnv` →
   `project.env` → `agent.env` — later values win.
 - Set `cwd` to the project's registered absolute path.
-- Spawn the agent as a detached background OS process.
+- Spawn the agent as a background OS process (non-blocking — HTTP response returns immediately). On shutdown (SIGINT/SIGTERM, e.g. PM2 stop/restart) RemoteBridge kills every agent it spawned before exiting, so no agent is left orphaned. See ADR-0002.
+- Use `node-pty` (not `child_process.spawn`) to provide a real PTY. Claude Code and similar agents check for TTY at startup and refuse to run without one — without a PTY they immediately exit with an error.
 - Agent command is sourced **only** from the built-in catalog or user config —
   never from the raw client request payload.
 
 ### FR4. Remote Link Extraction
 
-- Stream agent process stdout and stderr line by line.
+- Read the agent's PTY output as a single merged stream (node-pty combines stdout
+  and stderr), split into lines.
 - Match each line against the agent's `linkPattern` regex.
 - On first match:
   - Update session state to `running`.
@@ -135,7 +141,7 @@ expected type, and a pointer to `remotebridge help`.
 
 | Agent | Default Pattern |
 |-------|----------------|
-| claude | `https://claude\.ai/code/sessions/[\w-]+` |
+| claude | `https://claude\.ai/code/session_[\w]+` |
 | gemini | `https?://[\w.-]+:\d+/[\w?=&-]*` |
 | opencode | `http://127\.0\.0\.1:\d+` |
 | generic | `https?://[^\s]+` (fallback for unknown agents) |
@@ -150,11 +156,14 @@ expected type, and a pointer to `remotebridge help`.
           FAILED ← timeout / crash
   ```
 
-- User can **Stop** a running session (sends SIGTERM to PID, then SIGKILL
-  after grace period).
+- User can **Stop** a running session. On Unix: SIGTERM → SIGKILL after grace
+  period. On Windows: `taskkill /PID <pid>` → `/F` after grace period.
 - User can **Restart** a stopped/failed session (re-spawns with same config).
 - User can **Delete** a stopped/failed session record.
-- On app restart, sessions whose PID is no longer alive are marked `stopped`.
+- Sessions do **not** survive a RemoteBridge restart: PTY handles are lost, so on
+  startup every prior `launching`/`running` session is marked `stopped`. RemoteBridge
+  never kills a stale PID directly (PID-reuse safety — see H1/H10/ADR-0002); it only
+  logs a warning if the old PID still appears alive.
 
 ---
 
@@ -188,7 +197,12 @@ expected type, and a pointer to `remotebridge help`.
 - Project `path` validated server-side as an existing absolute directory.
 - Agent command sourced exclusively from built-in catalog or config —
   not from client payload.
-- `~/.remotebridge/` directory: mode `0700`. All files inside: mode `0600`.
+- Config directory permissions:
+  - **Unix (Linux / macOS):** directory mode `0700`, all files `0600`, written
+    atomically via temp file + `fs.rename`.
+  - **Windows:** directory created with restricted ACL (owner-only via
+    `icacls`). If `icacls` is unavailable, log a warning and continue — do
+    not fail startup.
 - `GET /api/config` **never returns** `password` or `sessionSecret`.
 - Login endpoint: rate-limited to 10 attempts / minute per IP.
 - CLI prints a **red warning banner** on start when bound to `0.0.0.0`.
@@ -210,7 +224,20 @@ expected type, and a pointer to `remotebridge help`.
 
 ---
 
-## Configuration Reference (`~/.remotebridge/config.json`)
+## Configuration Reference
+
+### Config directory (platform-specific)
+
+| Platform | Path |
+|----------|------|
+| Linux | `~/.remotebridge/` |
+| macOS | `~/.remotebridge/` |
+| Windows | `%APPDATA%\remotebridge\` |
+
+Resolved at runtime via `os.homedir()` on Unix and `process.env.APPDATA` on
+Windows. The directory is created on first run if it does not exist.
+
+### `config.json`
 
 ```jsonc
 {
@@ -234,7 +261,7 @@ expected type, and a pointer to `remotebridge help`.
       "command": "claude",
       "args": ["--remote-control"],
       "env": {},
-      "linkPattern": "https://claude\\.ai/code/sessions/[\\w-]+"
+      "linkPattern": "https://claude\\.ai/code/session_[\\w]+"
     },
     "gemini": {
       "command": "gemini",
@@ -271,6 +298,7 @@ expected type, and a pointer to `remotebridge help`.
 ```
 POST   /api/auth/login
 POST   /api/auth/logout
+GET    /api/auth/csrf                  (session required — issues fresh CSRF token on page load)
 
 GET    /api/projects
 POST   /api/projects
@@ -315,3 +343,48 @@ WebSocket: `ws://<host>:<port>/ws` (cookie auth on upgrade)
 7. Link extracted → card shows **Open Remote Control** button.
 8. Click → new browser tab opens the agent's remote URL.
 9. When done → click **Stop** on the session card.
+
+---
+
+## Cross-Platform Notes
+
+### Path handling
+- Always use `path.join()` / `path.resolve()` — never string concatenation with `/` or `\`.
+- Project `path` field stores the OS-native absolute path as entered by the user.
+  Validate with `fs.stat()`, not string pattern matching.
+
+### Process spawning
+- Spawn agents via `node-pty` (a real PTY) on all platforms — agents like Claude Code
+  check for a TTY at startup and refuse to run without one. See ADR-0001.
+- On Windows, agent executables installed via npm may require the `.cmd` shim
+  (e.g. `claude.cmd`). Resolve the correct executable name with `resolveCommand()`
+  before spawning — node-pty does not do this automatically.
+
+### Browser open (`remotebridge open`)
+- Use the `open` npm package — it wraps `open` (macOS), `xdg-open` (Linux),
+  and `start` (Windows) automatically.
+
+### Process termination (`remotebridge stop` / session Stop)
+- Use the node-pty process handle: `child.kill('SIGTERM')`, then `child.kill('SIGKILL')`
+  after a grace period. node-pty maps these to the correct Windows call internally.
+- Only terminate agent processes RemoteBridge spawned (tracked by the PtyProcess handle
+  and PID in sessions.json). Never signal unrelated OS processes.
+
+### File permissions
+- Unix only: `fs.chmod(path, 0o700)` for config dir, `0o600` for files.
+- Windows: attempt `icacls` to restrict to current user; log a warning if it
+  fails but do not abort startup.
+- Atomic writes: write to a `.tmp` file then `fs.rename()` — works on all
+  platforms (same-drive rename is atomic on Windows NTFS too).
+
+### npm bin entries (`package.json`)
+```jsonc
+{
+  "bin": {
+    "remotebridge": "./bin/remotebridge.js"
+  }
+}
+```
+npm automatically generates a `.cmd` wrapper on Windows and a symlink on
+Unix when installed globally — no separate shell script files needed. The
+entry point must be a `.js` file with a `#!/usr/bin/env node` shebang.

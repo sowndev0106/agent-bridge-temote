@@ -164,12 +164,14 @@ agent-bridge-temote/
     "fastify": "^4.28.1",
     "open": "^10.1.0",
     "pino": "^9.3.2",
+    "node-pty": "^1.1.0",
     "uuid": "^10.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
+    "@types/node-pty": "^0.10.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.5.11",
@@ -344,7 +346,9 @@ export interface AppConfig {
 }
 
 export type WsEvent =
-  | { type: 'session.updated'; payload: Session }
+  // logs are streamed only via 'session.log' + the initial GET /api/sessions
+  // snapshot — never re-sent inside 'session.updated' (see ADR-0002 / logs invariant).
+  | { type: 'session.updated'; payload: Omit<Session, 'logs'> }
   | { type: 'session.log'; payload: { sessionId: string; line: string } }
 ```
 
@@ -914,6 +918,23 @@ program
       process.exit(1)
     }
 
+    // Smoke-test the node-pty native module. On a fresh machine without a build
+    // toolchain (Python + C/C++ compiler, or VS Build Tools on Windows) the prebuilt
+    // binary may be missing/mismatched and require() throws here rather than at first
+    // launch. Turn the node-gyp wall-of-text into an actionable message (see ADR-0001).
+    try {
+      await import('node-pty')
+    } catch (err) {
+      console.error('Error: node-pty failed to load — RemoteBridge cannot spawn agents.')
+      console.error(`  ${(err as Error).message}`)
+      console.error('  Install a build toolchain and reinstall:')
+      console.error('    Linux:   sudo apt-get install -y build-essential python3')
+      console.error('    macOS:   xcode-select --install')
+      console.error('    Windows: npm install -g windows-build-tools  (or install VS Build Tools)')
+      console.error("  Then: npm install -g remotebridge. Run 'remotebridge help' for usage.")
+      process.exit(1)
+    }
+
     await ensureDir(CONFIG_DIR)
     const cfg = await loadConfig()
 
@@ -929,9 +950,12 @@ program
     cfg.sessionSecret = generateSecret()
     await atomicWrite(CONFIG_FILE, cfg)
 
-    // Register with PM2
+    // Register with PM2.
+    // --kill-timeout 6000: PM2's default (~1.6s) is shorter than SessionManager.killAll()'s
+    // SIGTERM->wait->SIGKILL window, so without this PM2 would SIGKILL the daemon mid-drain
+    // and orphan the agents. 6s gives killAll() room to finish (FR3 / ADR-0002).
     const scriptPath = new URL('../server/index.js', import.meta.url).pathname
-    spawnSync('pm2', ['start', scriptPath, '--name', 'remotebridge', '--interpreter', 'node'], { stdio: 'inherit' })
+    spawnSync('pm2', ['start', scriptPath, '--name', 'remotebridge', '--interpreter', 'node', '--kill-timeout', '6000'], { stdio: 'inherit' })
     spawnSync('pm2', ['save'], { stdio: 'inherit' })
 
     console.log(`\n✓ RemoteBridge installed. Run: remotebridge start`)
@@ -1129,6 +1153,7 @@ export function makeCsrfCheckHook() {
 import type { FastifyInstance } from 'fastify'
 import { verifyPassword } from '../core/auth.js'
 import { generateCsrfToken } from '../core/csrf.js'
+import { makeSessionAuthHook } from '../middleware/session-auth.js'
 import { RateLimiter } from '../core/rate-limit.js'
 import type { AppConfig } from '../../types.js'
 
@@ -1163,6 +1188,15 @@ export async function authRoutes(fastify: FastifyInstance, { config, sessionSecr
       .clearCookie('rb_csrf')
       .send({ ok: true, data: null })
   })
+
+  // Called on page load when a valid session cookie already exists.
+  // Issues a fresh CSRF token so mutations work after a browser refresh.
+  fastify.get('/api/auth/csrf', { preHandler: makeSessionAuthHook(sessionSecret) }, async (_request, reply) => {
+    const { token: csrfToken, hash: csrfHash } = generateCsrfToken()
+    reply
+      .setCookie('rb_csrf', csrfHash, { httpOnly: false, sameSite: 'strict', path: '/' })
+      .send({ ok: true, data: { csrfToken } })
+  })
 }
 ```
 
@@ -1171,6 +1205,7 @@ export async function authRoutes(fastify: FastifyInstance, { config, sessionSecr
 ```ts
 import type { FastifyInstance } from 'fastify'
 import { loadConfig, saveConfig, validateConfig } from '../core/config.js'
+import { hashPassword } from '../core/auth.js'
 import type { AppConfig } from '../../types.js'
 
 export async function configRoutes(fastify: FastifyInstance) {
@@ -1185,7 +1220,19 @@ export async function configRoutes(fastify: FastifyInstance) {
   fastify.put('/api/config', async (request, reply) => {
     const updates = request.body as Partial<AppConfig>
     const current = await loadConfig()
-    const updated = { ...current, ...updates }
+
+    // A 'password' field arriving over the API is a plaintext password — bcrypt-hash it
+    // before saving, exactly as the CLI's `config set password` does (H4). Without this,
+    // plaintext lands in config.json and the bcrypt-compare login path can never match it,
+    // locking the user out. sessionSecret is never accepted from the client.
+    const { sessionSecret: _ignored, ...allowed } = updates
+    if (typeof allowed.password === 'string' && allowed.password.length > 0) {
+      allowed.password = await hashPassword(allowed.password)
+    } else {
+      delete allowed.password   // never overwrite an existing hash with '' or undefined
+    }
+
+    const updated = { ...current, ...allowed }
     const errors = validateConfig(updated)
     if (errors.length) return reply.code(400).send({ ok: false, error: { code: 'invalid_config', message: errors.join('; ') } })
     await saveConfig(updated)
@@ -1359,7 +1406,7 @@ export const BUILT_IN_AGENTS: AgentDefinition[] = [
     command: 'claude',
     args: ['--remote-control'],
     env: {},
-    linkPattern: 'https://claude\\.ai/code/sessions/[\\w-]+',
+    linkPattern: 'https://claude\\.ai/code/session_[\\w]+',
     enabled: true
   },
   {
@@ -1403,6 +1450,16 @@ export function resolveAgent(agentId: string, configOverrides: AppConfig['agents
     linkPattern: override.linkPattern ?? base.linkPattern
   }
 }
+
+// On Windows, npm-installed global bins are .cmd shims (e.g. claude.cmd).
+// node-pty does not resolve these automatically, so append .cmd at spawn time.
+// Absolute paths and commands that already have an extension are left untouched.
+export function resolveCommand(command: string): string {
+  if (process.platform !== 'win32') return command
+  if (/\.(cmd|bat|exe)$/i.test(command)) return command
+  if (command.includes('/') || command.includes('\\')) return command
+  return `${command}.cmd`
+}
 ```
 
 - [ ] **Step 2: Commit**
@@ -1428,11 +1485,13 @@ import { describe, it, expect } from 'vitest'
 import { extractLink } from '../../src/server/sessions/link-extractor.js'
 
 describe('extractLink', () => {
-  const claudePattern = 'https://claude\\.ai/code/sessions/[\\w-]+'
+  const claudePattern = 'https://claude\\.ai/code/session_[\\w]+'
 
   it('extracts Claude remote link from stdout line', () => {
-    const line = 'Remote session ready: https://claude.ai/code/sessions/abc-123-def'
-    expect(extractLink(line, claudePattern)).toBe('https://claude.ai/code/sessions/abc-123-def')
+    // Verified against claude v2.1.156: stdout line is
+    // "/remote-control is active · Continue here, on your phone, or at  https://claude.ai/code/session_<ULID>"
+    const line = '/remote-control is active · Continue here, on your phone, or at  https://claude.ai/code/session_01HjuhkefR1roLvgeB2xizbG'
+    expect(extractLink(line, claudePattern)).toBe('https://claude.ai/code/session_01HjuhkefR1roLvgeB2xizbG')
   })
 
   it('returns null when no link in line', () => {
@@ -1491,22 +1550,32 @@ git commit -m "feat: link extractor — regex match per agent pattern"
 
 ```ts
 // tests/sessions/manager.test.ts
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtemp, rm } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { SessionManager } from '../../src/server/sessions/manager.js'
 
 describe('SessionManager', () => {
   let manager: SessionManager
+  let tmpDir: string
+  let sessionsFile: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'rb-manager-'))
+    sessionsFile = join(tmpDir, 'sessions.json')
     manager = new SessionManager({
       keepSessionLogsLines: 10,
       linkExtractTimeout: 2,
       maxConcurrentSessions: 5,
+      sessionsFile,
       onEvent: () => {}
     })
   })
 
-  it('creates session in launching state', async () => {
+  afterEach(async () => { await rm(tmpDir, { recursive: true }) })
+
+  it('creates session in launching state', () => {
     const session = manager.createSession({ projectId: 'p1', agentId: 'claude' })
     expect(session.state).toBe('launching')
     expect(session.remoteLink).toBeNull()
@@ -1534,17 +1603,57 @@ describe('SessionManager', () => {
     manager.updateSession(s.id, { state: 'running' })
     expect(() => manager.removeSession(s.id)).toThrow()
   })
+
+  it('persists sessions across manager instances', async () => {
+    const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
+    await new Promise(r => setTimeout(r, 50)) // let fire-and-forget persist flush
+
+    const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
+    await manager2.loadAndRecover()
+    // launching with no PID → marked stopped on recover
+    expect(manager2.getSession(s.id)).not.toBeNull()
+    expect(manager2.getSession(s.id)!.state).toBe('stopped')
+  })
+
+  it('loadAndRecover marks sessions with dead PID as stopped', async () => {
+    const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
+    manager.updateSession(s.id, { state: 'running', pid: 99999999 }) // guaranteed dead PID
+    await new Promise(r => setTimeout(r, 50))
+
+    const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
+    await manager2.loadAndRecover()
+    expect(manager2.getSession(s.id)!.state).toBe('stopped')
+  })
+
+  it('loadAndRecover does not alter a stopped session', async () => {
+    const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
+    manager.updateSession(s.id, { state: 'stopped', stoppedAt: '2026-01-01T00:00:00.000Z' })
+    await new Promise(r => setTimeout(r, 50))
+
+    const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
+    await manager2.loadAndRecover()
+    expect(manager2.getSession(s.id)!.stoppedAt).toBe('2026-01-01T00:00:00.000Z')
+  })
 })
 ```
 
 - [ ] **Step 2: Implement `src/server/sessions/manager.ts`**
 
 ```ts
-import { spawn } from 'child_process'
+import * as nodePty from 'node-pty'
 import { v4 as uuidv4 } from 'uuid'
 import { extractLink } from './link-extractor.js'
-import { resolveAgent } from './agent-catalog.js'
-import type { Session, SessionState, AppConfig } from '../../types.js'
+import { resolveAgent, resolveCommand } from './agent-catalog.js'
+import { atomicWrite, readJson } from '../core/persistence.js'
+import type { Session, AppConfig } from '../../types.js'
+
+// node-pty provides a real PTY — required because claude (and similar agents)
+// check for TTY on startup and refuse to run in --print mode without one.
+type PtyProcess = ReturnType<typeof nodePty.spawn>
+
+function isPidAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true } catch { return false }
+}
 
 type WsEventCallback = (event: { type: string; payload: unknown }) => void
 
@@ -1552,17 +1661,48 @@ interface ManagerOptions {
   keepSessionLogsLines: number
   linkExtractTimeout: number
   maxConcurrentSessions: number
+  sessionsFile: string
   onEvent: WsEventCallback
 }
 
 export class SessionManager {
   private sessions = new Map<string, Session>()
-  private processes = new Map<string, ReturnType<typeof spawn>>()
+  private processes = new Map<string, PtyProcess>()
   private timeouts = new Map<string, ReturnType<typeof setTimeout>>()
   private opts: ManagerOptions
 
   constructor(opts: ManagerOptions) {
     this.opts = opts
+  }
+
+  private persistSessions(): void {
+    // logs are ephemeral — strip before saving
+    const toSave = Array.from(this.sessions.values()).map(s => ({ ...s, logs: [] }))
+    atomicWrite(this.opts.sessionsFile, toSave).catch(err => {
+      console.error('[SessionManager] Failed to persist sessions:', (err as Error).message)
+    })
+  }
+
+  async loadAndRecover(): Promise<void> {
+    const saved = await readJson<Session[]>(this.opts.sessionsFile) ?? []
+    for (const session of saved) {
+      session.logs = [] // logs are not persisted
+      // PTY handles do not survive a RemoteBridge restart, so we can no longer
+      // control a previously running agent. Always mark prior launching/running
+      // sessions as stopped. Do NOT kill by bare PID — it may have been reused by
+      // an unrelated process (would violate H1/H10). See ADR-0002.
+      if (session.state === 'launching' || session.state === 'running') {
+        if (session.pid != null && isPidAlive(session.pid)) {
+          console.warn(`[SessionManager] Session ${session.id} PID ${session.pid} may still be alive after restart; marking stopped without killing (PID-reuse safety).`)
+        }
+        session.state = 'stopped'
+        session.stoppedAt = session.stoppedAt ?? new Date().toISOString()
+      }
+      this.sessions.set(session.id, session)
+    }
+    // Write back cleaned state synchronously before server starts accepting requests
+    const toSave = Array.from(this.sessions.values()).map(s => ({ ...s, logs: [] }))
+    await atomicWrite(this.opts.sessionsFile, toSave)
   }
 
   createSession(init: { projectId: string; agentId: string }): Session {
@@ -1579,6 +1719,7 @@ export class SessionManager {
       error: null
     }
     this.sessions.set(session.id, session)
+    this.persistSessions()
     return session
   }
 
@@ -1594,7 +1735,12 @@ export class SessionManager {
     const session = this.sessions.get(id)
     if (!session) throw new Error(`Session ${id} not found`)
     Object.assign(session, patch)
-    this.opts.onEvent({ type: 'session.updated', payload: { ...session } })
+    // Strip logs from the broadcast — logs flow only via 'session.log' events and
+    // the initial GET /api/sessions snapshot. Re-sending them here would clobber the
+    // client's appended logs and waste bandwidth (up to keepSessionLogsLines per event).
+    const { logs: _logs, ...rest } = session
+    this.opts.onEvent({ type: 'session.updated', payload: rest })
+    this.persistSessions()
     return session
   }
 
@@ -1607,6 +1753,7 @@ export class SessionManager {
     this.sessions.delete(id)
     this.timeouts.get(id) && clearTimeout(this.timeouts.get(id)!)
     this.timeouts.delete(id)
+    this.persistSessions()
   }
 
   async launch(sessionId: string, options: {
@@ -1625,18 +1772,23 @@ export class SessionManager {
       ...process.env,
       ...options.config.globalEnv,
       ...options.project.env,
-      ...agent.env
+      ...agent.env,
+      TERM: 'xterm-256color'
     } as Record<string, string>
 
-    const child = spawn(agent.command, agent.args, {
+    // node-pty spawns with a real PTY — required for agents that check for TTY (claude, gemini).
+    // resolveCommand appends .cmd on Windows for npm-installed global bins.
+    const child = nodePty.spawn(resolveCommand(agent.command), agent.args, {
+      name: 'xterm-256color',
       cwd: options.project.path,
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false
+      cols: 220,
+      rows: 50
     })
 
-    session.pid = child.pid ?? null
+    session.pid = child.pid
     this.processes.set(sessionId, child)
+    this.persistSessions() // persist PID immediately
 
     // Set link-extract timeout
     const timeout = setTimeout(() => {
@@ -1652,16 +1804,26 @@ export class SessionManager {
     this.timeouts.set(sessionId, timeout)
 
     const handleLine = (line: string) => {
-      // Append to logs
       const s = this.getSession(sessionId)
       if (!s) return
-      s.logs.push(line)
-      if (s.logs.length > this.opts.keepSessionLogsLines) s.logs.shift()
-      this.opts.onEvent({ type: 'session.log', payload: { sessionId, line } })
 
-      // Try link extraction only while launching
+      // Auto-accept claude's "trust this folder?" prompt.
+      // The user registered this project in RemoteBridge, so trust is implicit.
+      if (/trust this folder|1\.\s*Yes.*trust/i.test(line)) {
+        child.write('\r')
+        return
+      }
+
+      // Strip ANSI escape codes before logging and link extraction
+      const clean = line.replace(/\x1b\[[0-9;?=>]*[a-zA-Z]/g, '').trim()
+      if (!clean) return
+
+      s.logs.push(clean)
+      if (s.logs.length > this.opts.keepSessionLogsLines) s.logs.shift()
+      this.opts.onEvent({ type: 'session.log', payload: { sessionId, line: clean } })
+
       if (s.state === 'launching') {
-        const link = extractLink(line, agent.linkPattern)
+        const link = extractLink(clean, agent.linkPattern)
         if (link) {
           clearTimeout(this.timeouts.get(sessionId))
           this.timeouts.delete(sessionId)
@@ -1670,14 +1832,20 @@ export class SessionManager {
       }
     }
 
-    child.stdout?.on('data', (chunk: Buffer) => {
-      chunk.toString().split('\n').filter(Boolean).forEach(handleLine)
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      chunk.toString().split('\n').filter(Boolean).forEach(handleLine)
+    // node-pty merges stdout+stderr into a single onData stream (string, not Buffer).
+    // onData delivers ARBITRARY chunks, not whole lines — a line (including the
+    // remote link) can be split across two chunks. Buffer until newline so the link
+    // pattern never runs against a partial line. Keep the trailing fragment.
+    let lineBuf = ''
+    child.onData((data: string) => {
+      lineBuf += data
+      const lines = lineBuf.split('\n')
+      lineBuf = lines.pop() ?? ''   // unterminated tail carries over to next chunk
+      lines.forEach(handleLine)
     })
 
-    child.on('exit', () => {
+    child.onExit(() => {
+      if (lineBuf) { handleLine(lineBuf); lineBuf = '' }  // flush final fragment
       clearTimeout(this.timeouts.get(sessionId))
       this.timeouts.delete(sessionId)
       this.processes.delete(sessionId)
@@ -1700,11 +1868,40 @@ export class SessionManager {
     }, 5000)
   }
 
+  // Called on shutdown (SIGINT/SIGTERM, e.g. PM2 stop/restart) so no spawned agent is
+  // orphaned (FR3 / ADR-0002). PTY handles live in this.processes, so we only ever signal
+  // processes we spawned — never a bare/reused PID (H10).
+  //
+  // PM2's default kill_timeout (~1.6s) is shorter than stop()'s 5s grace period, so a
+  // graceful drain would be cut short and PM2 would orphan the agents. Instead we SIGTERM
+  // all, await their exits with a short bound (< kill_timeout), then SIGKILL any stragglers
+  // ourselves and resolve. `remotebridge install` registers PM2 with --kill-timeout 6000 so
+  // this escalation has room to complete.
+  async killAll(): Promise<void> {
+    const children = Array.from(this.processes.values())
+    if (children.length === 0) return
+
+    const exits = children.map(child => new Promise<void>(resolve => {
+      child.onExit(() => resolve())
+    }))
+    for (const child of children) {
+      try { child.kill('SIGTERM') } catch { /* already gone */ }
+    }
+
+    // Wait up to ~1s for graceful exits, then force-kill whatever remains.
+    await Promise.race([
+      Promise.all(exits),
+      new Promise<void>(resolve => setTimeout(resolve, 1000))
+    ])
+    for (const child of children) {
+      try { child.kill('SIGKILL') } catch { /* already gone */ }
+    }
+  }
+
   async restart(sessionId: string, options: { project: { path: string; env: Record<string, string> }; config: AppConfig }): Promise<void> {
     const session = this.getSession(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     this.stop(sessionId)
-    // Wait a tick for exit handler
     await new Promise(r => setTimeout(r, 200))
     this.updateSession(sessionId, {
       state: 'launching',
@@ -1717,16 +1914,18 @@ export class SessionManager {
     })
     await this.launch(sessionId, options)
   }
-
-  recoverFromRestart(): void {
-    // On app restart, mark all launching/running sessions as stopped
-    for (const [id, session] of this.sessions) {
-      if (session.state === 'launching' || session.state === 'running') {
-        this.updateSession(id, { state: 'stopped', stoppedAt: new Date().toISOString() })
-      }
-    }
-  }
 }
+```
+
+- [ ] **Step 2b: Add a regression test for link split across chunks**
+
+The link must be extracted even when `onData` delivers it in two pieces. Make the
+buffering unit-testable (e.g. extract a small `LineBuffer` helper, or drive a fake
+pty whose `onData` you can fire manually) and assert:
+
+```ts
+// feeding "...session_01Hju" then "hke...\n" in two onData calls
+// still yields one complete line and a 'running' state with the full link.
 ```
 
 - [ ] **Step 3: Run tests**
@@ -1735,13 +1934,13 @@ export class SessionManager {
 npm test -- tests/sessions/manager.test.ts
 ```
 
-Expected: all PASS
+Expected: all PASS (including the split-chunk case)
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add src/server/sessions/manager.ts tests/sessions/manager.test.ts
-git commit -m "feat: SessionManager — spawn, stdout pipe, link extract, kill, restart, state machine"
+git commit -m "feat: SessionManager — node-pty spawn, line-buffered link extract, trust-prompt auto-accept, ANSI strip, disk persistence, PID recovery"
 ```
 
 ---
@@ -1766,6 +1965,7 @@ import { isAbsolute } from 'path'
 import { readJson, atomicWrite } from '../core/persistence.js'
 import { join } from 'path'
 import { homedir } from 'os'
+import type { SessionManager } from '../sessions/manager.js'
 import type { Project } from '../../types.js'
 
 const PROJECTS_FILE = join(homedir(), '.remotebridge', 'projects.json')
@@ -1789,7 +1989,7 @@ async function validatePath(p: string): Promise<string | null> {
   }
 }
 
-export async function projectRoutes(fastify: FastifyInstance) {
+export async function projectRoutes(fastify: FastifyInstance, manager: SessionManager) {
   fastify.get('/api/projects', async () => {
     return { ok: true, data: await loadProjects() }
   })
@@ -1829,9 +2029,21 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/projects/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     const projects = await loadProjects()
-    const filtered = projects.filter(p => p.id !== id)
-    if (filtered.length === projects.length) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
-    await saveProjects(filtered)
+    if (!projects.some(p => p.id === id)) {
+      return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
+    }
+
+    // Block deletion while any session for this project is still live (H15). Symmetric with
+    // SessionManager.removeSession()'s running-guard: an aggregate can't be deleted while a
+    // child references it, so Restart never 404s against a vanished project.
+    const live = manager.listSessions().filter(
+      s => s.projectId === id && (s.state === 'launching' || s.state === 'running')
+    )
+    if (live.length > 0) {
+      return reply.code(409).send({ ok: false, error: { code: 'project_in_use', message: `Cannot delete project: ${live.length} session(s) still launching/running. Stop them first.` } })
+    }
+
+    await saveProjects(projects.filter(p => p.id !== id))
     reply.send({ ok: true, data: null })
   })
 }
@@ -1959,6 +2171,15 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     if (!project) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
 
     const config = await loadConfig()
+
+    // Enforce the concurrency cap on restart too — a restart re-enters 'launching', so a
+    // stopped session restarting while others run could otherwise push past the cap. Count
+    // OTHER live sessions (exclude this one, which is stopped/failed).
+    const otherLive = manager.listSessions().filter(s => s.id !== id && (s.state === 'running' || s.state === 'launching'))
+    if (otherLive.length >= config.maxConcurrentSessions) {
+      return reply.code(429).send({ ok: false, error: { code: 'max_sessions_reached', message: `Maximum ${config.maxConcurrentSessions} concurrent sessions reached` } })
+    }
+
     manager.restart(id, { project: { path: project.path, env: project.env }, config }).catch(err => {
       manager.updateSession(id, { state: 'failed', error: err.message, stoppedAt: new Date().toISOString() })
     })
@@ -1988,21 +2209,34 @@ import { agentRoutes } from './routes/agents.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { createWsServer } from './ws/index.js'
 import { SessionManager } from './sessions/manager.js'
+import { CONFIG_DIR } from './core/config.js'
+import { join } from 'path'
 
 // Inside createServer(), before return:
 const manager = new SessionManager({
   keepSessionLogsLines: config.keepSessionLogsLines,
   linkExtractTimeout: config.linkExtractTimeout,
   maxConcurrentSessions: config.maxConcurrentSessions,
+  sessionsFile: join(CONFIG_DIR, 'sessions.json'),
   onEvent: (event) => broadcast(event as WsEvent)
 })
 
-manager.recoverFromRestart()
+await manager.loadAndRecover()
+
+// Graceful shutdown — kill all spawned agents before exiting so none are orphaned
+// (FR3 / ADR-0002). PM2 sends SIGINT on stop/restart.
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(sig, async () => {
+    await manager.killAll()            // SIGTERM all agents, brief bounded wait, SIGKILL stragglers
+    await fastify.close().catch(() => {})
+    process.exit(0)
+  })
+}
 
 // Register protected routes with session + csrf hooks
 await fastify.register(async (app) => {
   app.addHook('preHandler', requireSession)
-  await app.register(projectRoutes)
+  await app.register((a) => projectRoutes(a, manager))  // manager needed for the delete-in-use guard (H15)
   await app.register(agentRoutes)
   await configRoutes(app) // already registered, but move /api/config here
 })
@@ -2044,7 +2278,10 @@ beforeAll(async () => {
   tmpDir = await mkdtemp(join(tmpdir(), 'rb-routes-'))
   realProjectPath = tmpDir  // use the tmpDir itself as a valid project path
   fastify = Fastify()
-  await fastify.register(projectRoutes)
+  // projectRoutes needs a SessionManager for the delete-in-use guard (H15).
+  // These tests never exercise delete-with-live-sessions, so a no-session stub suffices.
+  const managerStub = { listSessions: () => [] } as unknown as import('../../src/server/sessions/manager.js').SessionManager
+  await fastify.register((a) => projectRoutes(a, managerStub))
   await fastify.ready()
 })
 
@@ -2091,7 +2328,7 @@ Expected: all PASS
 
 ```bash
 git add src/server/routes/ src/server/ws/ tests/routes/projects.test.ts
-git commit -m "feat: all API routes (projects, agents, sessions) + WebSocket server"
+git commit -m "feat: all API routes (projects, agents, sessions) + WebSocket server + session persistence wiring"
 ```
 
 ---
@@ -2200,6 +2437,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 export const api = {
   login: (password: string) => request<{ csrfToken: string }>('POST', '/api/auth/login', { password }),
   logout: () => request<null>('POST', '/api/auth/logout'),
+  getCsrf: () => request<{ csrfToken: string }>('GET', '/api/auth/csrf'),
   getProjects: () => request<import('../../types.js').Project[]>('GET', '/api/projects'),
   createProject: (data: { name: string; path: string; env: Record<string, string> }) =>
     request<import('../../types.js').Project>('POST', '/api/projects', data),
@@ -2407,8 +2645,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    api.getConfig()
-      .then(cfg => { useConfigStore.getState().setConfig(cfg); setAuthed(true) })
+    // Verify session and refresh CSRF token in parallel — both require valid session cookie.
+    // getCsrf() must succeed before any mutations can work after a page refresh.
+    Promise.all([api.getConfig(), api.getCsrf()])
+      .then(([cfg, { csrfToken }]) => {
+        useConfigStore.getState().setConfig(cfg)
+        setCsrfToken(csrfToken)
+        setAuthed(true)
+      })
       .catch(() => setAuthed(false))
   }, [])
 
@@ -2647,6 +2891,7 @@ git commit -m "feat: app shell — Router, AuthGuard, Layout, Header, Sidebar, L
 ```tsx
 import { api } from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
+import { useProjectsStore } from '../stores/projects'
 import { useUIStore } from '../stores/ui'
 import type { Session } from '../../../src/types'
 
@@ -2661,7 +2906,13 @@ const STATE_ICONS = { launching: '◌', running: '●', stopped: '○', failed: 
 
 export default function SessionCard({ session }: { session: Session }) {
   const { updateSession, removeSession } = useSessionsStore()
+  const { projects } = useProjectsStore()
   const { setLogsSessionId } = useUIStore()
+
+  // Show the project's display name, not its raw UUID. Falls back to the id if the
+  // project was deleted (H15 blocks delete for live sessions, but a stopped session's
+  // project can be removed).
+  const projectName = projects.find(p => p.id === session.projectId)?.name ?? session.projectId
 
   const stop = async () => {
     const updated = await api.stopSession(session.id)
@@ -2682,7 +2933,7 @@ export default function SessionCard({ session }: { session: Session }) {
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
       <div className="flex justify-between items-start">
         <div>
-          <p className="font-medium text-white text-sm">{session.projectId}</p>
+          <p className="font-medium text-white text-sm">{projectName}</p>
           <p className="text-xs text-gray-500">{session.agentId}</p>
         </div>
         <span className={`text-xs font-mono ${STATE_COLORS[session.state]}`}>

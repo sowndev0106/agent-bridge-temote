@@ -45,7 +45,14 @@ Original draft proposed Angular + Spring. Revised to Node.js + React because:
 - Consistent with similar tools in this space (agent-remote-control uses same stack)
 - PM2 process management is idiomatic for Node.js services
 
-## Pending Verification
+## Verified Link Pattern (claude v2.1.156, 2026-05-29)
 
-Link pattern for `claude --remote-control` needs empirical verification.
-Built-in pattern `https://claude\.ai/code/sessions/[\w-]+` is an assumption.
+`claude --remote-control` emits this stdout line when ready:
+```
+/remote-control is active · Continue here, on your phone, or at  https://claude.ai/code/session_<ULID>
+```
+Correct pattern: `https://claude\.ai/code/session_[\w]+`
+- `session_` (singular, underscore) — NOT `sessions/`
+- ID is a ULID (alphanumeric, no hyphens)
+
+Must re-verify on major Claude Code version bumps.
