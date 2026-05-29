@@ -2,11 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import type { SessionManager } from '../sessions/manager.js'
 import { loadConfig } from '../core/config.js'
 import { readJson } from '../core/persistence.js'
-import { join } from 'path'
-import { homedir } from 'os'
+import { PROJECTS_FILE } from '../core/paths.js'
 import type { Project } from '../../types.js'
-
-const PROJECTS_FILE = join(homedir(), '.remotebridge', 'projects.json')
 
 export async function sessionRoutes(fastify: FastifyInstance, manager: SessionManager) {
   fastify.get('/api/sessions', async () => {

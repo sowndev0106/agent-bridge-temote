@@ -10,7 +10,12 @@ describe('config', () => {
   })
 
   it('validateConfig returns no errors for valid config', () => {
-    expect(validateConfig({ port: 3000, logLevel: 'debug', host: '127.0.0.1' })).toEqual([])
+    expect(validateConfig({ port: 3000, logLevel: 'debug', host: '127.0.0.1', sessionSecret: 'x' })).toEqual([])
+  })
+
+  it('validateConfig flags an empty sessionSecret', () => {
+    const errors = validateConfig({ host: '127.0.0.1', sessionSecret: '' })
+    expect(errors.some(e => e.includes('sessionSecret'))).toBe(true)
   })
 
   it('validateConfig catches invalid port', () => {

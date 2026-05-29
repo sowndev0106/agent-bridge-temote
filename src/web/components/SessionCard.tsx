@@ -2,6 +2,8 @@ import { api } from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
 import { useProjectsStore } from '../stores/projects'
 import { useUIStore } from '../stores/ui'
+import { useTerminalsStore } from '../stores/terminals'
+import { sendWsMessage } from '../lib/ws'
 import type { Session } from '../../types'
 
 const STATE_COLORS = {
@@ -36,6 +38,27 @@ export default function SessionCard({ session }: { session: Session }) {
   const remove = async () => {
     await api.deleteSession(session.id)
     removeSession(session.id)
+  }
+
+  const openTerminal = () => {
+    console.log('[SessionCard] openTerminal clicked for session:', session.id, 'state:', session.state)
+    const existing = useTerminalsStore.getState().tabs.find(t => t.sessionId === session.id)
+    console.log('[SessionCard] existing terminal tab found:', existing)
+    if (existing) {
+      console.log('[SessionCard] Switching to existing terminal tab:', existing.id)
+      useTerminalsStore.getState().setActiveTab(existing.id)
+      useTerminalsStore.getState().setPanelOpen(true)
+      return
+    }
+    console.log('[SessionCard] Sending terminal.attach event to WS for session:', session.id)
+    sendWsMessage({ type: 'terminal.attach', payload: { sessionId: session.id } })
+    console.log('[SessionCard] Adding session tab to terminals store')
+    useTerminalsStore.getState().addTab({
+      id: session.id,
+      title: `${session.agentId} session`,
+      type: 'session',
+      sessionId: session.id
+    })
   }
 
   return (
@@ -86,6 +109,15 @@ export default function SessionCard({ session }: { session: Session }) {
               ✕
             </button>
           </>
+        )}
+        {(session.state === 'launching' || session.state === 'running') && (
+          <button
+            onClick={openTerminal}
+            className="text-xs py-1.5 px-3 bg-blue-600/30 hover:bg-blue-600/50 rounded-lg text-blue-400 font-bold"
+            title="Open Interactive Terminal"
+          >
+            ⚡ Term
+          </button>
         )}
         <button
           onClick={() => setLogsSessionId(session.id)}

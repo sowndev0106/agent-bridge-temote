@@ -1,13 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { randomUUID } from 'crypto'
 import { stat } from 'fs/promises'
-import { isAbsolute, join } from 'path'
-import { homedir } from 'os'
+import { isAbsolute } from 'path'
 import { readJson, atomicWrite } from '../core/persistence.js'
+import { PROJECTS_FILE } from '../core/paths.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { Project } from '../../types.js'
-
-const PROJECTS_FILE = join(homedir(), '.remotebridge', 'projects.json')
 
 async function loadProjects(): Promise<Project[]> {
   return (await readJson<Project[]>(PROJECTS_FILE)) ?? []

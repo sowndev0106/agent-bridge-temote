@@ -1,10 +1,10 @@
 import { readJson, atomicWrite } from './persistence.js'
-import { homedir } from 'os'
-import { join } from 'path'
+import { CONFIG_DIR, CONFIG_FILE } from './paths.js'
+import { hashPassword } from './auth.js'
 import type { AppConfig } from '../../types.js'
 
-export const CONFIG_DIR = join(homedir(), '.remotebridge')
-export const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
+// Re-exported for back-compat with existing importers.
+export { CONFIG_DIR, CONFIG_FILE }
 
 export const CONFIG_DEFAULTS: AppConfig = {
   port: 4096,
@@ -43,6 +43,13 @@ export function validateConfig(cfg: Partial<AppConfig>): string[] {
     errors.push(`"password" is required when "host" is not 127.0.0.1. Run: remotebridge config set password <yourpassword>`)
   }
 
+  // An empty sessionSecret would sign session tokens with an empty HMAC key — generated
+  // by `remotebridge install`. Refuse to run without it rather than issue weak cookies.
+  const sessionSecret = cfg.sessionSecret ?? CONFIG_DEFAULTS.sessionSecret
+  if (!sessionSecret) {
+    errors.push(`"sessionSecret" is not set — run 'remotebridge install' to generate one. Run 'remotebridge help' for usage.`)
+  }
+
   return errors
 }
 
@@ -55,10 +62,50 @@ export function mergeConfig(base: AppConfig, override: Partial<AppConfig>): AppC
   }
 }
 
+/**
+ * Read config fields from environment variables (RB_* prefix).
+ * These take highest priority — useful in dev mode or CI without touching
+ * ~/.remotebridge/config.json.
+ *
+ * Supported vars:
+ *   RB_PORT               number
+ *   RB_HOST               string
+ *   RB_PASSWORD           string — plaintext OR bcrypt hash (auto-detected)
+ *   RB_SESSION_SECRET     string
+ *   RB_SESSION_TTL        number (seconds)
+ *   RB_LOG_LEVEL          debug | info | warn | error
+ *   RB_LINK_EXTRACT_TIMEOUT  number (seconds)
+ *   RB_MAX_CONCURRENT_SESSIONS  number
+ *   RB_KEEP_SESSION_LOGS_LINES  number
+ */
+export async function loadEnvConfig(): Promise<Partial<AppConfig>> {
+  const env = process.env
+  const out: Partial<AppConfig> = {}
+
+  if (env.RB_PORT)                        out.port = Number(env.RB_PORT)
+  if (env.RB_HOST)                        out.host = env.RB_HOST
+  if (env.RB_PASSWORD) {
+    // Accept plaintext for dev convenience — auto-hash if not already a bcrypt hash.
+    out.password = env.RB_PASSWORD.startsWith('$2')
+      ? env.RB_PASSWORD
+      : await hashPassword(env.RB_PASSWORD)
+  }
+  if (env.RB_SESSION_SECRET)              out.sessionSecret = env.RB_SESSION_SECRET
+  if (env.RB_SESSION_TTL)                 out.sessionTTL = Number(env.RB_SESSION_TTL)
+  if (env.RB_LOG_LEVEL)                   out.logLevel = env.RB_LOG_LEVEL as AppConfig['logLevel']
+  if (env.RB_LINK_EXTRACT_TIMEOUT)        out.linkExtractTimeout = Number(env.RB_LINK_EXTRACT_TIMEOUT)
+  if (env.RB_MAX_CONCURRENT_SESSIONS)     out.maxConcurrentSessions = Number(env.RB_MAX_CONCURRENT_SESSIONS)
+  if (env.RB_KEEP_SESSION_LOGS_LINES)     out.keepSessionLogsLines = Number(env.RB_KEEP_SESSION_LOGS_LINES)
+
+  return out
+}
+
 export async function loadConfig(): Promise<AppConfig> {
   const saved = await readJson<Partial<AppConfig>>(CONFIG_FILE)
-  if (!saved) return { ...CONFIG_DEFAULTS }
-  return mergeConfig(CONFIG_DEFAULTS, saved)
+  const fromFile = saved ? mergeConfig(CONFIG_DEFAULTS, saved) : { ...CONFIG_DEFAULTS }
+  // Env vars take highest priority so dev mode / CI can override without
+  // touching ~/.remotebridge/config.json.
+  return mergeConfig(fromFile, await loadEnvConfig())
 }
 
 export async function saveConfig(cfg: AppConfig): Promise<void> {

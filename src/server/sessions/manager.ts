@@ -46,6 +46,7 @@ export class SessionManager {
   private sessions = new Map<string, Session>()
   private processes = new Map<string, PtyProcess>()
   private timeouts = new Map<string, ReturnType<typeof setTimeout>>()
+  private rawDataListeners = new Map<string, Set<(data: string) => void>>()
   private opts: ManagerOptions
   // Persists are fire-and-forget on the hot path, but SERIALIZED through this chain so two
   // atomicWrites never race (last-writer-wins on the same file would otherwise be
@@ -226,6 +227,11 @@ export class SessionManager {
     // node-pty merges stdout+stderr into a single onData stream (string, not Buffer).
     const lineBuf = new LineBuffer()
     child.onData((data: string) => {
+      // Emit raw data for interactive terminal listeners
+      const listeners = this.rawDataListeners.get(sessionId)
+      if (listeners) {
+        for (const fn of listeners) fn(data)
+      }
       for (const line of lineBuf.push(data)) handleLine(line)
     })
 
@@ -236,6 +242,7 @@ export class SessionManager {
       if (t) clearTimeout(t)
       this.timeouts.delete(sessionId)
       this.processes.delete(sessionId)
+      this.rawDataListeners.delete(sessionId)
       const s = this.getSession(sessionId)
       if (s && s.state !== 'stopped') {
         this.updateSession(sessionId, { state: 'stopped', stoppedAt: new Date().toISOString() })
@@ -253,6 +260,40 @@ export class SessionManager {
     setTimeout(() => {
       if (this.processes.has(sessionId)) child.kill('SIGKILL')
     }, 5000)
+  }
+
+  /** Write raw input to session PTY (interactive terminal mode) */
+  writeToSession(sessionId: string, data: string): boolean {
+    const child = this.processes.get(sessionId)
+    if (!child) return false
+    child.write(data)
+    return true
+  }
+
+  /** Resize session PTY (interactive terminal mode) */
+  resizeSession(sessionId: string, cols: number, rows: number): boolean {
+    const child = this.processes.get(sessionId)
+    if (!child) return false
+    child.resize(cols, rows)
+    return true
+  }
+
+  /** Check if a session has an active PTY process */
+  hasProcess(sessionId: string): boolean {
+    return this.processes.has(sessionId)
+  }
+
+  onRawData(sessionId: string, listener: (data: string) => void): () => void {
+    if (!this.rawDataListeners.has(sessionId)) {
+      this.rawDataListeners.set(sessionId, new Set())
+    }
+    this.rawDataListeners.get(sessionId)!.add(listener)
+    return () => {
+      this.rawDataListeners.get(sessionId)?.delete(listener)
+      if (this.rawDataListeners.get(sessionId)?.size === 0) {
+        this.rawDataListeners.delete(sessionId)
+      }
+    }
   }
 
   // Called on shutdown (SIGINT/SIGTERM, e.g. PM2 stop/restart) so no spawned agent is

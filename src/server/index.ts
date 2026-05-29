@@ -4,7 +4,8 @@ import staticPlugin from '@fastify/static'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync } from 'fs'
-import { loadConfig, validateConfig, CONFIG_DIR } from './core/config.js'
+import { loadConfig, validateConfig } from './core/config.js'
+import { SESSIONS_FILE } from './core/paths.js'
 import { createLogger } from './core/logger.js'
 import { makeSessionAuthHook } from './middleware/session-auth.js'
 import { makeCsrfCheckHook } from './middleware/csrf-check.js'
@@ -15,6 +16,7 @@ import { agentRoutes } from './routes/agents.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { createWsServer } from './ws/index.js'
 import { SessionManager } from './sessions/manager.js'
+import { TerminalManager } from './terminals/manager.js'
 import type { WsEvent } from '../types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -49,15 +51,35 @@ export async function createServer() {
   const requireCsrf = makeCsrfCheckHook()
 
   // WS server first so `broadcast` exists before the manager emits any event.
-  const { broadcast } = createWsServer(fastify.server, sessionSecret)
+  // Pass managers after construction (chicken-and-egg: managers need broadcast, WS needs managers).
+  let broadcastFn: (event: WsEvent) => void = () => {}
+  let sendToTerminalFn: (terminalId: string, event: WsEvent) => void = () => {}
 
   const manager = new SessionManager({
     keepSessionLogsLines: config.keepSessionLogsLines,
     linkExtractTimeout: config.linkExtractTimeout,
     maxConcurrentSessions: config.maxConcurrentSessions,
-    sessionsFile: join(CONFIG_DIR, 'sessions.json'),
-    onEvent: (event) => broadcast(event as WsEvent)
+    sessionsFile: SESSIONS_FILE,
+    onEvent: (event) => broadcastFn(event as WsEvent)
   })
+
+  const terminalManager = new TerminalManager((event) => {
+    // Route terminal.data to specific clients via sendToTerminalClients
+    if (event.type === 'terminal.data') {
+      const payload = event.payload as { terminalId: string; data: string }
+      sendToTerminalFn(payload.terminalId, event as WsEvent)
+    } else {
+      broadcastFn(event as WsEvent)
+    }
+  })
+
+  const { broadcast, sendToTerminalClients } = createWsServer(
+    fastify.server, sessionSecret,
+    { sessionManager: manager, terminalManager }
+  )
+  broadcastFn = broadcast
+  sendToTerminalFn = sendToTerminalClients
+
   await manager.loadAndRecover()
 
   // Graceful shutdown — kill all spawned agents before exiting so none are orphaned
@@ -65,6 +87,7 @@ export async function createServer() {
   for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     process.once(sig, async () => {
       await manager.killAll()            // SIGTERM all agents, brief bounded wait, SIGKILL stragglers
+      await terminalManager.killAll()    // SIGTERM all terminal processes
       await manager.flush()              // ensure final session state (stopped) reached disk
       await fastify.close().catch(() => {})
       process.exit(0)
