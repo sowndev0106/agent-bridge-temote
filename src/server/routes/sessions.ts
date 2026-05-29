@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { SessionManager } from '../sessions/manager.js'
+import { detectGitBranch } from '../sessions/branch.js'
 import { loadConfig } from '../core/config.js'
 import { readJson } from '../core/persistence.js'
 import { PROJECTS_FILE } from '../core/paths.js'
@@ -25,7 +26,8 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     const project = projects.find(p => p.id === projectId)
     if (!project) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
 
-    const session = manager.createSession({ projectId, agentId, title })
+    const branch = await detectGitBranch(project.path)
+    const session = manager.createSession({ projectId, agentId, title, branch })
 
     // Launch async — response returns immediately
     manager.launch(session.id, { project: { path: project.path, env: project.env }, config }).catch(err => {

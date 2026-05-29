@@ -18,7 +18,10 @@ function meta(s: Session): string {
   const time = s.state === 'running' || s.state === 'launching'
     ? `running ${formatDuration(s.startedAt)}`
     : `${formatClock(s.startedAt)}${s.stoppedAt ? ` · ran ${formatDuration(s.startedAt, s.stoppedAt)}` : ''}`
-  return s.pid ? `${time} · pid ${s.pid}` : time
+  const parts = [time]
+  if (s.branch) parts.push(s.branch)
+  if (s.pid) parts.push(`pid ${s.pid}`)
+  return parts.join(' · ')
 }
 
 const ACT = 'flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)]'
