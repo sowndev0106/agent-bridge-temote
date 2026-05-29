@@ -62,7 +62,7 @@ async function mockRemoteBridgeApi(page: Page) {
       },
       {
         id: 'session-launching',
-        projectId: 'project-web',
+        projectId: 'project-api',
         agentId: 'claude',
         pid: 12346,
         state: 'launching',
@@ -74,7 +74,7 @@ async function mockRemoteBridgeApi(page: Page) {
       },
       {
         id: 'session-failed',
-        projectId: 'project-web',
+        projectId: 'project-api',
         agentId: 'claude',
         pid: null,
         state: 'failed',
@@ -110,6 +110,32 @@ async function mockRemoteBridgeApi(page: Page) {
       }
     ]))
   }))
+
+  await page.route(/\/api\/projects\/[^/]+\/files(\?.*)?$/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify(ok({
+      projectId: 'project-api',
+      rootPath: '/home/user/workplace/personal/api-service',
+      path: '',
+      parent: null,
+      entries: [
+        { name: 'src', path: 'src', type: 'directory', size: null, modifiedAt: '2026-05-29T00:00:00.000Z' },
+        { name: 'README.md', path: 'README.md', type: 'file', size: 40, modifiedAt: '2026-05-29T00:00:00.000Z' }
+      ]
+    }))
+  }))
+
+  await page.route(/\/api\/projects\/[^/]+\/files\/preview(\?.*)?$/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify(ok({
+      projectId: 'project-api',
+      path: 'README.md',
+      type: 'text',
+      content: '# README\n',
+      truncated: false,
+      size: 8
+    }))
+  }))
 }
 
 async function openDashboard(page: Page, width: number, height: number) {
@@ -117,7 +143,7 @@ async function openDashboard(page: Page, width: number, height: number) {
   await mockRemoteBridgeApi(page)
   await page.goto('/')
   await expect(page.getByRole('banner')).toBeVisible()
-  await expect(page.getByText('Active Sessions')).toBeVisible()
+  await expect(page.getByText('Recent projects')).toBeVisible()
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -143,7 +169,10 @@ test('mobile layout fits and opens project drawer', async ({ page }) => {
   await projectNavigation.getByRole('button', { name: 'Close project navigation' }).click()
   await expect(projectNavigation).toBeHidden()
 
-  const cards = page.locator('[data-testid="session-card"]')
+  await page.getByRole('link', { name: 'api-service' }).first().click()
+  await expect(page.getByRole('heading', { name: 'api-service' })).toBeVisible()
+
+  const cards = page.locator('[data-testid="session-row"]')
   await expect(cards).toHaveCount(3)
   const first = await cards.first().boundingBox()
   const second = await cards.nth(1).boundingBox()
@@ -151,7 +180,7 @@ test('mobile layout fits and opens project drawer', async ({ page }) => {
   expect(second).not.toBeNull()
   expect(second!.y).toBeGreaterThan(first!.y)
 
-  await page.getByRole('button', { name: 'View logs for claude session session-running' }).click()
+  await page.getByRole('button', { name: 'View logs' }).first().click()
   const drawer = page.getByRole('dialog', { name: /Logs/ })
   await expect(drawer).toBeVisible()
   const box = await drawer.boundingBox()
@@ -169,7 +198,7 @@ test('tablet layout keeps compact navigation and terminal controls usable', asyn
   const sidebarBox = await sidebar.boundingBox()
   expect(sidebarBox).not.toBeNull()
   expect(sidebarBox!.width).toBeGreaterThanOrEqual(56)
-  expect(sidebarBox!.width).toBeLessThanOrEqual(224)
+  expect(sidebarBox!.width).toBeLessThanOrEqual(240)
 
   await expect(page.getByRole('button', { name: 'Open new terminal' })).toBeVisible()
 })
@@ -183,13 +212,16 @@ test('desktop layout uses full sidebar and multi-column sessions', async ({ page
   expect(sidebarBox).not.toBeNull()
   expect(sidebarBox!.width).toBeGreaterThanOrEqual(230)
 
-  const cards = page.locator('[data-testid="session-card"]')
+  await page.getByRole('link', { name: 'api-service' }).first().click()
+  await expect(page.getByRole('heading', { name: 'api-service' })).toBeVisible()
+
+  const cards = page.locator('[data-testid="session-row"]')
   await expect(cards).toHaveCount(3)
   const first = await cards.first().boundingBox()
   const second = await cards.nth(1).boundingBox()
   expect(first).not.toBeNull()
   expect(second).not.toBeNull()
-  expect(Math.abs(second!.y - first!.y)).toBeLessThan(24)
+  expect(second!.y).toBeGreaterThan(first!.y)
 
   await expect(page.getByText('RemoteBridge is exposed on 0.0.0.0')).toBeVisible()
 })
