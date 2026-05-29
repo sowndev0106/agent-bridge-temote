@@ -325,6 +325,9 @@ These types are shared between server and web. Import from `../../types.js` (ser
 | Integration | `tests/core/persistence.test.ts` | vitest | Uses real tmpdir; checks mode 0700/0600 |
 | Route | `tests/routes/` | vitest + Fastify inject | Full Fastify instance, no network |
 | Session | `tests/sessions/` | vitest | Manager uses real tmpdir; no actual PTY spawn |
+| E2E | `tests/e2e/` | vitest + ws + node-pty | Real server on an ephemeral port; real PTY via `tests/fixtures/fake-agent.mjs`; full login→launch→link→stop/restart/delete flow. See [docs/E2E-TEST-PLAN.md](docs/E2E-TEST-PLAN.md) |
+
+Tests run in the `forks` pool with `$HOME` redirected to a sandbox (`tests/setup.ts`) so they never touch the real `~/.remotebridge` (modules resolve the config dir from `os.homedir()` at import time).
 
 **Run a single test file:**
 ```bash
