@@ -33,6 +33,9 @@ export const api = {
   updateProject: (id: string, data: Partial<Project>) =>
     request<Project>('PUT', `/api/projects/${id}`, data),
   deleteProject: (id: string) => request<null>('DELETE', `/api/projects/${id}`),
+  browseFolder: (path?: string) =>
+    request<{ path: string; parent: string | null; entries: { name: string; path: string }[] }>(
+      'GET', `/api/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getAgents: () => request<AgentDefinition[]>('GET', '/api/agents'),
   getSessions: () => request<Session[]>('GET', '/api/sessions'),
   launchSession: (projectId: string, agentId: string) =>
