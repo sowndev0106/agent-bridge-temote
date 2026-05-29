@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { lstat, readdir, readFile, realpath } from 'fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'path'
+import { lstat, readdir, readFile, realpath, open } from 'fs/promises'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'path'
 import { readJson } from '../core/persistence.js'
 import { PROJECTS_FILE } from '../core/paths.js'
 import type { FileEntry, FileListResult, FilePreviewResult, Project } from '../../types.js'
@@ -26,7 +26,7 @@ function normalizeRelativePath(path: string | undefined): string {
 
 function isInside(root: string, child: string): boolean {
   const rel = relative(root, child)
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+  return rel === '' || (!rel.startsWith('..' + sep) && rel !== '..' && !isAbsolute(rel))
 }
 
 export async function resolveProjectChildPath(project: Project, requestedPath?: string) {
@@ -57,21 +57,22 @@ function sortEntries(a: FileEntry, b: FileEntry): number {
 export async function listProjectFiles(project: Project, requestedPath?: string): Promise<FileListResult> {
   const resolved = await resolveProjectChildPath(project, requestedPath)
   const dirents = await readdir(resolved.absolutePath, { withFileTypes: true })
-  const entries: FileEntry[] = []
 
-  for (const dirent of dirents) {
-    if (dirent.name.startsWith('.')) continue
-    const absoluteEntry = join(resolved.absolutePath, dirent.name)
-    const stats = await lstat(absoluteEntry)
-    const type = entryType(stats)
-    entries.push({
-      name: dirent.name,
-      path: relative(resolved.root, absoluteEntry),
-      type,
-      size: type === 'directory' ? null : stats.size,
-      modifiedAt: stats.mtime.toISOString()
+  const entryPromises = dirents
+    .filter(dirent => !dirent.name.startsWith('.'))
+    .map(async (dirent) => {
+      const absoluteEntry = join(resolved.absolutePath, dirent.name)
+      const stats = await lstat(absoluteEntry)
+      const type = entryType(stats)
+      return {
+        name: dirent.name,
+        path: relative(resolved.root, absoluteEntry),
+        type,
+        size: type === 'directory' ? null : stats.size,
+        modifiedAt: stats.mtime.toISOString()
+      }
     })
-  }
+  const entries = await Promise.all(entryPromises)
 
   const parent = resolved.relativePath === '' ? null : relative(resolved.root, dirname(resolved.absolutePath))
   return {
@@ -104,8 +105,16 @@ export async function getProjectFilePreview(project: Project, requestedPath: str
   }
 
   const bytesToRead = Math.min(stats.size, MAX_PREVIEW_BYTES + 1)
-  const buf = await readFile(resolved.absolutePath)
-  const sample = buf.subarray(0, bytesToRead)
+  const buf = Buffer.alloc(bytesToRead)
+  if (bytesToRead > 0) {
+    const fd = await open(resolved.absolutePath, 'r')
+    try {
+      await fd.read(buf, 0, bytesToRead, 0)
+    } finally {
+      await fd.close()
+    }
+  }
+  const sample = buf
   if (looksBinary(sample)) {
     return { projectId: project.id, path: resolved.relativePath, type: 'binary', content: null, truncated: false, size: stats.size }
   }
@@ -142,7 +151,7 @@ export async function projectFileRoutes(fastify: FastifyInstance) {
       const code = (e as NodeJS.ErrnoException).code
       if (code === 'ENOENT') return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Path not found' } })
       if (code === 'EACCES') return reply.code(403).send({ ok: false, error: { code: 'forbidden', message: 'Permission denied' } })
-      return reply.code(400).send({ ok: false, error: { code: 'bad_path', message: e instanceof Error ? e.message : 'Invalid path' } })
+      return reply.code(400).send({ ok: false, error: { code: 'invalid_path', message: e instanceof Error ? e.message : 'Invalid path' } })
     }
   })
 
@@ -160,7 +169,7 @@ export async function projectFileRoutes(fastify: FastifyInstance) {
       const code = (e as NodeJS.ErrnoException).code
       if (code === 'ENOENT') return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Path not found' } })
       if (code === 'EACCES') return reply.code(403).send({ ok: false, error: { code: 'forbidden', message: 'Permission denied' } })
-      return reply.code(400).send({ ok: false, error: { code: 'bad_path', message: e instanceof Error ? e.message : 'Invalid path' } })
+      return reply.code(400).send({ ok: false, error: { code: 'invalid_path', message: e instanceof Error ? e.message : 'Invalid path' } })
     }
   })
 }
