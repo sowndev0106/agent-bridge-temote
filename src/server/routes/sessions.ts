@@ -11,7 +11,7 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
   })
 
   fastify.post('/api/sessions/launch', async (request, reply) => {
-    const { projectId, agentId } = request.body as { projectId?: string; agentId?: string }
+    const { projectId, agentId, title } = request.body as { projectId?: string; agentId?: string; title?: string }
     if (!projectId || !agentId) return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"projectId" and "agentId" are required' } })
 
     const config = await loadConfig()
@@ -25,7 +25,7 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     const project = projects.find(p => p.id === projectId)
     if (!project) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
 
-    const session = manager.createSession({ projectId, agentId })
+    const session = manager.createSession({ projectId, agentId, title })
 
     // Launch async — response returns immediately
     manager.launch(session.id, { project: { path: project.path, env: project.env }, config }).catch(err => {

@@ -14,6 +14,7 @@ export interface Session {
   id: string
   projectId: string
   agentId: string
+  title: string | null
   pid: number | null
   state: SessionState
   remoteLink: string | null

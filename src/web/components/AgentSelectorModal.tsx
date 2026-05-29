@@ -9,18 +9,22 @@ export default function AgentSelectorModal() {
   const { addSession } = useSessionsStore()
   const [agents, setAgents] = useState<AgentDefinition[]>([])
   const [selected, setSelected] = useState<string>('claude')
+  const [title, setTitle] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     api.getAgents().then(setAgents).catch(() => {})
   }, [])
 
+  // Reset title each time the modal re-opens for a different project.
+  useEffect(() => { if (agentSelectorProjectId) setTitle('') }, [agentSelectorProjectId])
+
   if (!agentSelectorProjectId) return null
 
   const launch = async () => {
     setLoading(true)
     try {
-      const session = await api.launchSession(agentSelectorProjectId, selected)
+      const session = await api.launchSession(agentSelectorProjectId, selected, title.trim() || undefined)
       addSession(session)
       setAgentSelectorProjectId(null)
     } finally {
@@ -41,29 +45,49 @@ export default function AgentSelectorModal() {
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Launch Agent</h2>
           <button type="button" onClick={() => setAgentSelectorProjectId(null)} className="rb-icon-button" aria-label="Close launch agent" title="Close">x</button>
         </div>
-        <div className="rb-scrollbar max-h-[calc(100dvh-128px)] space-y-2 overflow-y-auto p-4 sm:max-h-[60dvh]">
-          {agents.map(agent => (
-            <label key={agent.id} className={`flex min-w-0 items-start gap-3 rounded-[var(--radius-lg)] border p-3 transition-colors
-              ${selected === agent.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-glow)]' : 'border-[var(--color-border-default)] hover:border-[var(--color-border-strong)]'}
-              ${!agent.enabled ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'}`}
-            >
-              <input
-                type="radio"
-                name="agent"
-                value={agent.id}
-                checked={selected === agent.id}
-                disabled={!agent.enabled}
-                onChange={() => setSelected(agent.id)}
-                className="mt-1"
-              />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-[var(--color-text-primary)]">
-                  {agent.name} {!agent.enabled && <span className="text-xs text-[var(--color-text-muted)]">(Phase 2)</span>}
-                </span>
-                <span className="rb-mono block truncate text-[11px] text-[var(--color-text-muted)]">{agent.command} {agent.args.join(' ')}</span>
-              </span>
+        <div className="rb-scrollbar max-h-[calc(100dvh-128px)] space-y-4 overflow-y-auto p-4 sm:max-h-[60dvh]">
+          <div>
+            <label className="mb-1 block text-xs text-[var(--color-text-secondary)]">
+              What are you working on? <span className="text-[var(--color-text-muted)]">(optional)</span>
             </label>
-          ))}
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !loading) launch() }}
+              placeholder="e.g. fix login redirect bug"
+              maxLength={80}
+              className="rb-input text-sm"
+              autoFocus
+            />
+            <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">A short label shown on the session row.</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Agent</p>
+            {agents.map(agent => (
+              <label key={agent.id} className={`flex min-w-0 items-start gap-3 rounded-[var(--radius-lg)] border p-3 transition-colors
+                ${selected === agent.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-glow)]' : 'border-[var(--color-border-default)] hover:border-[var(--color-border-strong)]'}
+                ${!agent.enabled ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'}`}
+              >
+                <input
+                  type="radio"
+                  name="agent"
+                  value={agent.id}
+                  checked={selected === agent.id}
+                  disabled={!agent.enabled}
+                  onChange={() => setSelected(agent.id)}
+                  className="mt-1"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-[var(--color-text-primary)]">
+                    {agent.name} {!agent.enabled && <span className="text-xs text-[var(--color-text-muted)]">(Phase 2)</span>}
+                  </span>
+                  <span className="rb-mono block truncate text-[11px] text-[var(--color-text-muted)]">{agent.command} {agent.args.join(' ')}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2 border-t border-[var(--color-border-subtle)] p-4">
           <button type="button" onClick={() => setAgentSelectorProjectId(null)} className="rb-ghost-button">

@@ -78,6 +78,8 @@ export class SessionManager {
     const saved = await readJson<Session[]>(this.opts.sessionsFile) ?? []
     for (const session of saved) {
       session.logs = [] // logs are not persisted
+      // Back-compat: pre-Phase-2 records have no `title` field.
+      if (!('title' in session)) (session as Session).title = null
       // PTY handles do not survive a RemoteBridge restart, so we can no longer
       // control a previously running agent. Always mark prior launching/running
       // sessions as stopped. Do NOT kill by bare PID — it may have been reused by
@@ -96,11 +98,13 @@ export class SessionManager {
     await atomicWrite(this.opts.sessionsFile, toSave)
   }
 
-  createSession(init: { projectId: string; agentId: string }): Session {
+  createSession(init: { projectId: string; agentId: string; title?: string | null }): Session {
+    const trimmed = init.title?.trim()
     const session: Session = {
       id: randomUUID(),
       projectId: init.projectId,
       agentId: init.agentId,
+      title: trimmed && trimmed.length > 0 ? trimmed.slice(0, 80) : null,
       pid: null,
       state: 'launching',
       remoteLink: null,

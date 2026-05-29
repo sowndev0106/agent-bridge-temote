@@ -29,6 +29,21 @@ describe('SessionManager', () => {
     expect(session.remoteLink).toBeNull()
   })
 
+  it('persists a trimmed title (capped at 80 chars)', () => {
+    const a = manager.createSession({ projectId: 'p1', agentId: 'claude', title: '  fix login bug  ' })
+    expect(a.title).toBe('fix login bug')
+
+    const long = 'x'.repeat(200)
+    const b = manager.createSession({ projectId: 'p1', agentId: 'claude', title: long })
+    expect(b.title?.length).toBe(80)
+
+    const c = manager.createSession({ projectId: 'p1', agentId: 'claude', title: '   ' })
+    expect(c.title).toBeNull()
+
+    const d = manager.createSession({ projectId: 'p1', agentId: 'claude' })
+    expect(d.title).toBeNull()
+  })
+
   it('getSession returns null for unknown id', () => {
     expect(manager.getSession('unknown')).toBeNull()
   })

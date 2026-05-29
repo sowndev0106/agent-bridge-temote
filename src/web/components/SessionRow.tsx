@@ -62,12 +62,20 @@ export default function SessionRow({ session }: { session: Session }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">
-          <span className="rb-mono font-semibold text-[var(--color-text-primary)]">{shortId(session.id)}</span>
-          <span className="text-[var(--color-text-secondary)]">  {session.agentId}</span>
-        </p>
+        {session.title ? (
+          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{session.title}</p>
+        ) : (
+          <p className="truncate text-sm">
+            <span className="rb-mono font-semibold text-[var(--color-text-primary)]">{shortId(session.id)}</span>
+            <span className="text-[var(--color-text-secondary)]">  {session.agentId}</span>
+          </p>
+        )}
         <p className={`mt-1 truncate text-xs ${session.state === 'failed' ? 'text-[var(--color-failed)]' : 'text-[var(--color-text-muted)]'}`}>
-          {session.state === 'failed' ? (session.error ?? 'Unknown error') : meta(session)}
+          {session.state === 'failed'
+            ? (session.error ?? 'Unknown error')
+            : (session.title
+                ? `${shortId(session.id)} · ${session.agentId} · ${meta(session)}`
+                : meta(session))}
         </p>
       </div>
 

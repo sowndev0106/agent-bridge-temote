@@ -38,8 +38,8 @@ export const api = {
       'GET', `/api/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getAgents: () => request<AgentDefinition[]>('GET', '/api/agents'),
   getSessions: () => request<Session[]>('GET', '/api/sessions'),
-  launchSession: (projectId: string, agentId: string) =>
-    request<Session>('POST', '/api/sessions/launch', { projectId, agentId }),
+  launchSession: (projectId: string, agentId: string, title?: string) =>
+    request<Session>('POST', '/api/sessions/launch', { projectId, agentId, title }),
   stopSession: (id: string) => request<Session>('POST', `/api/sessions/${id}/stop`),
   restartSession: (id: string) => request<Session>('POST', `/api/sessions/${id}/restart`),
   deleteSession: (id: string) => request<null>('DELETE', `/api/sessions/${id}`),
