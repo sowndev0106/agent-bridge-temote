@@ -10,6 +10,7 @@ import SessionRow from '../components/SessionRow'
 import AgentSelectorModal from '../components/AgentSelectorModal'
 import AddProjectModal from '../components/AddProjectModal'
 import LogsDrawer from '../components/LogsDrawer'
+import FileExplorerPanel from '../components/FileExplorerPanel'
 import { compareSessions, projectColor, initials, dayLabel } from '../lib/format'
 import type { Session } from '../../types'
 
@@ -64,7 +65,7 @@ export default function ProjectWorkspace() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-2">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 py-2">
         <header className="flex min-w-0 flex-wrap items-center gap-4 border-b border-[var(--color-border-subtle)] pb-6">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] text-base font-semibold text-white shadow-sm" style={{ backgroundColor: projectColor(project.id) }}>
             {initials(project.name)}
@@ -77,6 +78,8 @@ export default function ProjectWorkspace() {
             <Plus size={15} /> New session
           </button>
         </header>
+
+        <FileExplorerPanel project={project} />
 
         <section className="flex flex-col gap-5">
           <div className="flex items-baseline justify-between gap-3">
