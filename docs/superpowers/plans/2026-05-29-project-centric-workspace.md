@@ -17,7 +17,8 @@
 - **Testing reality:** the repo has **no** jsdom / @testing-library — vitest runs in `node` env (`tests/**/*.test.ts`). So:
   - Pure logic (`format.ts` helpers, `fs.browse` directory listing) is built **test-first with vitest**.
   - React components are verified with **Playwright e2e** (`tests/e2e/`) and a manual run. Do not add component unit tests; follow the existing pattern.
-- **Design tokens:** use existing CSS vars (`var(--color-*)`, `var(--radius-*)`, `var(--shadow-*)`) and component classes (`rb-icon-button`, `rb-ghost-button`, `rb-primary-button`, `rb-mono`, `rb-focus`, `rb-scrollbar`, `rb-safe-bottom`). Accent is magenta `#c026d3`. Never hardcode hex outside `index.css`.
+- **Design tokens:** use existing CSS vars (`var(--color-*)`, `var(--radius-*)`, `var(--shadow-*)`) and component classes (`rb-icon-button`, `rb-ghost-button`, `rb-primary-button`, `rb-input`, `rb-mono`, `rb-focus`, `rb-scrollbar`, `rb-safe-bottom`). Accent is **blue** `var(--color-accent)` (#3b82f6); running=green, launching=amber, failed=red, stopped=grey. Project avatars deliberately use a per-project `hsl()` hue (the one splash of color), so they are inline styles, not tokens. Never hardcode other hex outside `index.css`.
+- **API envelope:** there is **no** `core/http` helper. Success is returned as a plain object `{ ok: true, data }`; errors as `reply.code(N).send({ ok: false, error: { code, message } })` (see `src/server/routes/projects.ts`). The client `request()` in `api.ts` unwraps `json.data` and throws on `!json.ok`.
 - **Commit after every task.** Branch is already `feat/phase1-implementation`.
 - **Run the dev app:** `npm run dev` (server :4091 + vite :5173). Unit tests: `npm test`. e2e: `npx playwright test`.
 
@@ -753,16 +754,24 @@ export interface TerminalTabInfo {
 
 - [ ] **Step 3: Echo `projectId` on the server**
 
-In `src/server/ws/index.ts`, in the `terminal.create` branch, read `projectId` from
-the payload and include it in the `terminal.created` message:
+In `src/server/ws/index.ts`, the real `terminal.create` branch (lines ~71-83) calls
+`ctx.terminalManager.create(msg.payload.cwd)` (cwd is a positional arg) and sends a
+`terminal.created` response. Add `projectId` to that response payload only:
 
 ```ts
-    if (msg.type === 'terminal.create') {
-      const { cwd, projectId } = msg.payload ?? {}
-      const term = terminalManager.create({ cwd })
-      send({ type: 'terminal.created', payload: { terminalId: term.id, title: term.title, pid: term.pid, projectId: projectId ?? null } })
-    }
+      case 'terminal.create': {
+        const info = ctx.terminalManager.create(msg.payload.cwd)
+        const termIds = clientTerminals.get(ws)
+        termIds?.add(info.id)
+        const response: WsEvent = {
+          type: 'terminal.created',
+          payload: { terminalId: info.id, title: info.title, pid: info.pid, projectId: msg.payload.projectId ?? null }
+        }
+        ws.send(JSON.stringify(response))
+        break
+      }
 ```
+(Keep the existing `console.log` lines if desired; only the `payload` gains `projectId`.)
 
 - [ ] **Step 4: Carry it into the client tab**
 
@@ -807,21 +816,32 @@ on the tab. On non-workspace routes (`activeProjectId == null`) show all tabs.
     : tabs
 ```
 
-Then render `visibleTabs` instead of `tabs` in the tab strip, and base the
-empty/open state on `visibleTabs.length`. Replace the `handleNewTerminal` payload so a
-shell opened from a workspace inherits the project cwd:
+The real `TerminalPanel.tsx` references `tabs` in **three** spots — update each to
+`visibleTabs`:
+1. The empty/collapsed guard: `if (!panelOpen || tabs.length === 0)` → `visibleTabs.length === 0`.
+2. The tab-strip `.map` (line ~79): `tabs.map(tab => …)` → `visibleTabs.map(...)`.
+3. The content `.map` (line ~127): `tabs.map(tab => <TerminalTab …/>)` → `visibleTabs.map(...)`.
 
+`TerminalTab` only takes `terminalId` + `isActive`, so its props don't change.
+Compute an effective active id so a hidden active tab doesn't blank the panel:
+```ts
+  const effectiveActiveId = visibleTabs.some(t => t.id === activeTabId)
+    ? activeTabId
+    : (visibleTabs[0]?.id ?? null)
+```
+Use `effectiveActiveId` in place of `activeTabId` for the strip highlight and the
+`isActive={tab.id === effectiveActiveId}` content check.
+
+Replace `handleNewTerminal` (line ~10) so a shell opened from a workspace inherits the
+project cwd (it currently sends `payload: {}`):
 ```ts
   const handleNewTerminal = () => {
     const project = useProjectsStore.getState().projects.find(p => p.id === activeProjectId)
     sendWsMessage({ type: 'terminal.create', payload: { cwd: project?.path, projectId: activeProjectId } })
   }
 ```
-(add `import { useProjectsStore } from '../stores/projects'`).
-
-> Keep the existing `panelOpen`/`activeTabId` logic; only the *rendered list* and the
-> create payload change. If `activeTabId` points at a tab not in `visibleTabs`, fall
-> back to `visibleTabs[0]?.id` when choosing which `TerminalView` to show.
+(add `import { useProjectsStore } from '../stores/projects'`). Leave the drag-resize,
+`handleCloseTab`, and `togglePanel` logic untouched.
 
 - [ ] **Step 6: Type-check + manual verify**
 
@@ -1022,7 +1042,6 @@ import type { FastifyInstance } from 'fastify'
 import { readdir } from 'fs/promises'
 import { homedir } from 'os'
 import { dirname, join, parse, resolve } from 'path'
-import { ok, fail } from '../core/http'
 
 export interface BrowseResult {
   path: string
@@ -1042,16 +1061,17 @@ export async function listDirectories(input: string): Promise<BrowseResult> {
   return { path, parent, entries }
 }
 
-export async function fsRoutes(app: FastifyInstance) {
-  app.get('/api/fs/browse', async (req, reply) => {
-    const { path } = req.query as { path?: string }
+// Envelope matches src/server/routes/projects.ts: { ok: true, data } | reply.code(N).send({ ok: false, error })
+export async function fsRoutes(fastify: FastifyInstance) {
+  fastify.get('/api/fs/browse', async (request, reply) => {
+    const { path } = request.query as { path?: string }
     try {
-      return ok(await listDirectories(path && path.length ? path : homedir()))
+      return { ok: true, data: await listDirectories(path && path.length ? path : homedir()) }
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code
-      if (code === 'ENOENT') return fail(reply, 404, 'NOT_FOUND', 'Directory not found')
-      if (code === 'EACCES') return fail(reply, 403, 'FORBIDDEN', 'Permission denied')
-      return fail(reply, 400, 'BAD_PATH', e instanceof Error ? e.message : 'Invalid path')
+      if (code === 'ENOENT') return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Directory not found' } })
+      if (code === 'EACCES') return reply.code(403).send({ ok: false, error: { code: 'forbidden', message: 'Permission denied' } })
+      return reply.code(400).send({ ok: false, error: { code: 'bad_path', message: e instanceof Error ? e.message : 'Invalid path' } })
     }
   })
 }
@@ -1062,15 +1082,22 @@ export async function fsRoutes(app: FastifyInstance) {
 Run: `npm test -- tests/routes/fs.test.ts`
 Expected: PASS (both cases).
 
-- [ ] **Step 5: Register the route**
+- [ ] **Step 5: Register the route (auth-gated)**
 
-In `src/server/index.ts`, add the import next to the other route imports:
+In `src/server/index.ts`, add the import next to the other route imports (note `.js`
+extension, matching siblings):
 ```ts
-import { fsRoutes } from './routes/fs'
+import { fsRoutes } from './routes/fs.js'
 ```
-and register it next to `projectRoutes`:
+Register it **inside** the protected block (the `fastify.register(async (app) => { … })`
+at lines ~104-111, which adds the `requireSession` + `requireCsrf` hooks). Browse is a
+GET, so the CSRF hook skips it and only the session is required:
 ```ts
-  await app.register(fsRoutes)
+    await app.register((a) => projectRoutes(a, manager))
+    await app.register(fsRoutes)          // ← add this line
+    await app.register(agentRoutes)
+    await app.register(configRoutes)
+    await app.register((a) => sessionRoutes(a, manager))
 ```
 
 - [ ] **Step 6: Add the client API**

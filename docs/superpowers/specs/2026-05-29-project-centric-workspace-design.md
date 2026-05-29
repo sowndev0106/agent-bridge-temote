@@ -127,6 +127,42 @@ cards are. (Per-project session detail lives in the Workspace.)
 - **Fix Restart**: remove `sm:flex-1`; right-align an even-sized action cluster.
 - Preserve all existing logic (stop/restart/remove/openTerminal) and `aria-label`s.
 
+### Open Project modal — folder browser (rewrite of AddProjectModal)
+Reference: opencode "Open project" dialog. Replaces the manual name+path form in
+`AddProjectModal`. Opened by the rail `+` and the Overview `Open project` button.
+
+Layout:
+- Header "Open project" + close.
+- **Search input** ("Search folders") — substring filter over the current directory
+  listing (and recent project names).
+- **Recent projects** section — existing `projects` from the store. Clicking one that
+  is already a project navigates to its workspace (no duplicate created).
+- **Browser** — breadcrumb of the current path (starts at the host home dir); a list
+  of subdirectories with folder icons; click a folder to descend; an up/`..` row to
+  ascend.
+- Primary action **Open this folder** → `api.createProject({ name: basename(path),
+  path, env: {} })`, then navigate to the new project's workspace.
+
+Requires the backend endpoint below. Folder browsing is consistent with the existing
+trust boundary (ADR-0003): an authenticated user already has full shell access via
+terminals, so enumerating directories is not a new privilege.
+
+### Backend — filesystem browse endpoint
+**File:** `src/server/routes/fs.ts` (new), registered in `src/server/index.ts`
+alongside the other route plugins.
+
+`GET /api/fs/browse?path=<dir>`:
+- Default `path` = `os.homedir()` when omitted.
+- Resolve to a real absolute path; reject paths containing null bytes.
+- Return only directories:
+  `{ ok: true, data: { path, parent: string | null, entries: { name, path }[] } }`
+  where `entries` are immediate subdirectories (skip unreadable/hidden-dot entries
+  by default), sorted alphabetically. `parent` is `dirname(path)` or `null` at fs root.
+- On ENOENT / EACCES return the standard error envelope (`{ ok: false, error }`),
+  matching the existing route error shape.
+- Auth + CSRF: same middleware as other `/api` routes (GET needs auth, no CSRF).
+- Add `api.browseFolder(path?: string)` to `src/web/lib/api.ts`.
+
 ### Helpers (`src/web/lib/format.ts`, new)
 `formatRelativeTime(iso)`, `formatDuration(start, stop)`, `shortId(id)`,
 `projectColor(id)`. Pure, unit-testable.
@@ -162,4 +198,15 @@ cards are. (Per-project session detail lives in the Workspace.)
 - `title`/`task`: new field set at launch (touches types.ts, manager.ts, routes).
 
 ## Scope
-Single implementation plan. Frontend-only. No backend changes this iteration.
+Single implementation plan. **Mostly frontend**, plus one new read-only backend
+endpoint (`GET /api/fs/browse`) for the Open Project folder browser. No changes to
+the `Session` model this iteration (see Deferred).
+
+Suggested PR/commit ordering so each slice is independently reviewable:
+1. `format.ts` helpers (+ unit tests).
+2. SessionRow refactor + Restart fix.
+3. Routing (`/`, `/project/:id`) + UIStore prefs + flat-store selectors.
+4. Sidebar icon rail (collapse, avatars, badges, tooltips).
+5. ProjectWorkspace (sessions + terminals scoped by `projectId`).
+6. OverviewPage (home + project card grid).
+7. Backend `fs.browse` endpoint + Open Project folder browser modal.
