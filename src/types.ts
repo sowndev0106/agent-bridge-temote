@@ -56,6 +56,42 @@ export interface AppConfig {
   logLevel: LogLevel
 }
 
+export type FileEntryType = 'directory' | 'file' | 'symlink'
+
+export interface FileEntry {
+  name: string
+  path: string
+  type: FileEntryType
+  size: number | null
+  modifiedAt: string
+}
+
+export interface FileListResult {
+  projectId: string
+  rootPath: string
+  path: string
+  parent: string | null
+  entries: FileEntry[]
+}
+
+export type FilePreviewResult =
+  | {
+      projectId: string
+      path: string
+      type: 'text'
+      content: string
+      truncated: boolean
+      size: number
+    }
+  | {
+      projectId: string
+      path: string
+      type: 'binary' | 'directory' | 'too_large' | 'unsupported'
+      content: null
+      truncated: false
+      size: number | null
+    }
+
 // --- Terminal types (Phase 1.1) ---
 
 /** Client → Server terminal messages */
