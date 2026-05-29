@@ -198,6 +198,11 @@ button {
   100% { transform: translateX(220%); }
 }
 
+@keyframes rb-ping {
+  0% { transform: scale(1); opacity: 0.6; }
+  75%, 100% { transform: scale(2.4); opacity: 0; }
+}
+
 .xterm {
   height: 100%;
 }

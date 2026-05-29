@@ -7,18 +7,11 @@ import { sendWsMessage } from '../lib/ws'
 import { shortId, formatDuration, formatClock } from '../lib/format'
 import type { Session } from '../../types'
 
-const DOT = {
-  launching: 'text-[var(--color-launching)]',
-  running: 'text-[var(--color-running)]',
-  stopped: 'text-[var(--color-stopped)]',
-  failed: 'text-[var(--color-failed)]'
-} as const
-const ICON = { launching: '◌', running: '●', stopped: '○', failed: '⚠' }
-const BORDER = {
-  running: 'border-l-[var(--color-running)]',
-  launching: 'border-l-[var(--color-launching)]',
-  failed: 'border-l-[var(--color-failed)]',
-  stopped: 'border-l-[var(--color-stopped)]'
+const DOT_BG = {
+  launching: 'bg-[var(--color-launching)]',
+  running: 'bg-[var(--color-running)]',
+  stopped: 'bg-[var(--color-stopped)]',
+  failed: 'bg-[var(--color-failed)]'
 } as const
 
 function meta(s: Session): string {
@@ -28,7 +21,7 @@ function meta(s: Session): string {
   return s.pid ? `${time} · pid ${s.pid}` : time
 }
 
-const ACTION = 'rb-icon-button h-8 min-h-8 w-8 min-w-8'
+const ACT = 'flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)]'
 
 export default function SessionRow({ session }: { session: Session }) {
   const { updateSession, removeSession } = useSessionsStore()
@@ -59,56 +52,55 @@ export default function SessionRow({ session }: { session: Session }) {
   return (
     <article
       data-testid="session-row"
-      className={`group flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] px-3 py-2 transition-colors hover:bg-[var(--color-bg-hover)] ${BORDER[session.state]}`}
+      className="group flex items-center gap-4 px-4 py-3.5 transition-colors first:rounded-t-[var(--radius-lg)] last:rounded-b-[var(--radius-lg)] hover:bg-[var(--color-bg-hover)]"
     >
-      <span
-        className={`shrink-0 text-[11px] ${DOT[session.state]}`}
-        aria-hidden="true"
-        title={session.state}
-        style={session.state === 'running' ? { animation: 'rb-pulse 3s ease-in-out infinite' } : undefined}
-      >
-        {ICON[session.state]}
+      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center" title={session.state} aria-hidden="true">
+        <span className={`h-2.5 w-2.5 rounded-full ${DOT_BG[session.state]}`} />
+        {session.state === 'running' && (
+          <span className={`absolute h-2.5 w-2.5 rounded-full ${DOT_BG.running}`} style={{ animation: 'rb-ping 1.8s cubic-bezier(0,0,0.2,1) infinite' }} />
+        )}
       </span>
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">
-          <span className="rb-mono font-medium text-[var(--color-text-primary)]">{shortId(session.id)}</span>
-          <span className="text-[var(--color-text-muted)]"> · {session.agentId}</span>
+          <span className="rb-mono font-semibold text-[var(--color-text-primary)]">{shortId(session.id)}</span>
+          <span className="text-[var(--color-text-secondary)]">  {session.agentId}</span>
         </p>
-        <p className={`truncate text-[11px] ${session.state === 'failed' ? 'text-[var(--color-failed)]' : 'text-[var(--color-text-muted)]'}`}>
+        <p className={`mt-1 truncate text-xs ${session.state === 'failed' ? 'text-[var(--color-failed)]' : 'text-[var(--color-text-muted)]'}`}>
           {session.state === 'failed' ? (session.error ?? 'Unknown error') : meta(session)}
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        {session.state === 'running' && session.remoteLink && (
-          <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
-            className={`${ACTION} border-[var(--color-accent)] text-[var(--color-accent)]`}
-            title="Open remote control" aria-label="Open remote control">
-            <ExternalLink size={15} />
-          </a>
-        )}
+      {session.state === 'running' && session.remoteLink && (
+        <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
+          className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
+          title="Open remote control">
+          Open Remote <ExternalLink size={13} />
+        </a>
+      )}
+
+      <div className="flex shrink-0 items-center gap-0.5">
         {session.state === 'running' && (
-          <button type="button" onClick={stop} className={ACTION} title="Stop" aria-label="Stop session">
-            <Square size={14} />
+          <button type="button" onClick={stop} className={ACT} title="Stop" aria-label="Stop session">
+            <Square size={15} />
           </button>
         )}
         {(session.state === 'stopped' || session.state === 'failed') && (
-          <button type="button" onClick={restart} className={ACTION} title="Restart" aria-label="Restart session">
-            <RotateCw size={14} />
+          <button type="button" onClick={restart} className={ACT} title="Restart" aria-label="Restart session">
+            <RotateCw size={15} />
           </button>
         )}
         {live && (
-          <button type="button" onClick={openTerminal} className={`${ACTION} text-[var(--color-accent)]`} title="Open terminal" aria-label="Open terminal">
-            <SquareTerminal size={15} />
+          <button type="button" onClick={openTerminal} className={`${ACT} hover:text-[var(--color-accent)]`} title="Open terminal" aria-label="Open terminal">
+            <SquareTerminal size={16} />
           </button>
         )}
-        <button type="button" onClick={() => setLogsSessionId(session.id)} className={ACTION} title="Logs" aria-label="View logs">
-          <ScrollText size={15} />
+        <button type="button" onClick={() => setLogsSessionId(session.id)} className={ACT} title="Logs" aria-label="View logs">
+          <ScrollText size={16} />
         </button>
         {(session.state === 'stopped' || session.state === 'failed') && (
-          <button type="button" onClick={remove} className={`${ACTION} text-[var(--color-failed)]`} title="Delete" aria-label="Delete session">
-            <Trash2 size={14} />
+          <button type="button" onClick={remove} className={`${ACT} hover:text-[var(--color-failed)]`} title="Delete" aria-label="Delete session">
+            <Trash2 size={15} />
           </button>
         )}
       </div>
