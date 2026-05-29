@@ -65,6 +65,7 @@ export async function createServer() {
   for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     process.once(sig, async () => {
       await manager.killAll()            // SIGTERM all agents, brief bounded wait, SIGKILL stragglers
+      await manager.flush()              // ensure final session state (stopped) reached disk
       await fastify.close().catch(() => {})
       process.exit(0)
     })

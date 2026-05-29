@@ -47,17 +47,29 @@ export class SessionManager {
   private processes = new Map<string, PtyProcess>()
   private timeouts = new Map<string, ReturnType<typeof setTimeout>>()
   private opts: ManagerOptions
+  // Persists are fire-and-forget on the hot path, but SERIALIZED through this chain so two
+  // atomicWrites never race (last-writer-wins on the same file would otherwise be
+  // nondeterministic). flush() awaits the chain — used by shutdown and tests.
+  private persistChain: Promise<void> = Promise.resolve()
 
   constructor(opts: ManagerOptions) {
     this.opts = opts
   }
 
   private persistSessions(): void {
-    // logs are ephemeral — strip before saving
+    // logs are ephemeral — strip before saving. Snapshot is taken now (at call time).
     const toSave = Array.from(this.sessions.values()).map(s => ({ ...s, logs: [] }))
-    atomicWrite(this.opts.sessionsFile, toSave).catch(err => {
-      console.error('[SessionManager] Failed to persist sessions:', (err as Error).message)
-    })
+    this.persistChain = this.persistChain
+      .catch(() => {})                 // a prior failure must not stall later writes
+      .then(() => atomicWrite(this.opts.sessionsFile, toSave))
+      .catch(err => {
+        console.error('[SessionManager] Failed to persist sessions:', (err as Error).message)
+      })
+  }
+
+  // Resolve once all queued persists have flushed to disk.
+  async flush(): Promise<void> {
+    await this.persistChain.catch(() => {})
   }
 
   async loadAndRecover(): Promise<void> {

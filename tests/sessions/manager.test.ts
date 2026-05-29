@@ -67,7 +67,7 @@ describe('SessionManager', () => {
 
   it('persists sessions across manager instances', async () => {
     const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
-    await new Promise(r => setTimeout(r, 50)) // let fire-and-forget persist flush
+    await manager.flush()
 
     const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
     await manager2.loadAndRecover()
@@ -79,7 +79,7 @@ describe('SessionManager', () => {
   it('loadAndRecover marks sessions with dead PID as stopped', async () => {
     const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
     manager.updateSession(s.id, { state: 'running', pid: 99999999 }) // guaranteed dead PID
-    await new Promise(r => setTimeout(r, 50))
+    await manager.flush()
 
     const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
     await manager2.loadAndRecover()
@@ -89,7 +89,7 @@ describe('SessionManager', () => {
   it('loadAndRecover does not alter a stopped session', async () => {
     const s = manager.createSession({ projectId: 'p1', agentId: 'claude' })
     manager.updateSession(s.id, { state: 'stopped', stoppedAt: '2026-01-01T00:00:00.000Z' })
-    await new Promise(r => setTimeout(r, 50))
+    await manager.flush()
 
     const manager2 = new SessionManager({ keepSessionLogsLines: 10, linkExtractTimeout: 2, maxConcurrentSessions: 5, sessionsFile, onEvent: () => {} })
     await manager2.loadAndRecover()
