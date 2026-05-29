@@ -11,6 +11,41 @@ surfaces it in the web interface.
 The user clicks **Launch**, waits a few seconds, then clicks **Open Remote
 Control** — that is the entire interaction.
 
+## Delivery Phases
+
+### Phase 1 — Claude Code (current focus)
+
+Deliver a **fully working** RemoteBridge with Claude Code as the only active
+provider. Every feature (project management, session lifecycle, link extraction,
+stop/restart, logs, auth, config) must work end-to-end with Claude Code before
+any other provider is added.
+
+Phase 1 MUST include:
+- Full CLI surface (`install`, `start`, `stop`, `restart`, `status`, `open`, `logs`, `config`, `help`).
+- Complete auth flow (password, session cookie, CSRF).
+- Project CRUD.
+- Claude Code agent: launch with `claude --remote-control`, capture link from stdout, display in UI.
+- Session lifecycle: `launching → running → stopped / failed` with stop and restart.
+- Live logs drawer (stdout streaming via WebSocket).
+- Settings page.
+- All Hard Rules H1–H14 enforced.
+
+Phase 1 MUST NOT include:
+- Gemini CLI, OpenCode, Codex, or any other provider implementation (stubs only — visible and disabled in UI).
+- Docker-based session isolation.
+- Multi-user auth.
+
+### Phase 2 — Additional Providers
+
+After Phase 1 is stable and fully tested, add providers one at a time:
+Gemini CLI → OpenCode → Codex → others.
+
+Each provider follows the same adapter interface established in Phase 1.
+Adding a provider must not require changes to the core session manager or UI
+beyond registering the new agent in the catalog.
+
+---
+
 ## Users & Use Case
 
 Single user (the developer). Runs on the developer's local Ubuntu machine.

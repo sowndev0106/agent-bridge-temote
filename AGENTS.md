@@ -8,6 +8,13 @@ This file provides guidance to coding agents (Claude Code, Codex, Cursor, Gemini
 
 The repo is currently in the spec-and-plan stage — no source code yet. Implementation begins after the plan is written from the docs.
 
+## Phase Priority
+
+**Phase 1 = Claude Code only.** Do not implement Gemini, OpenCode, Codex, or
+any other provider until Phase 1 is fully working and tested. Stubs for other
+providers are allowed (visible-and-disabled in UI) but must contain no real
+logic. See `docs/REQUIMENT.md` §Delivery Phases for the full boundary.
+
 ## Authoritative Documents
 
 Source of truth, in priority order. When documents conflict, the higher entry wins:
