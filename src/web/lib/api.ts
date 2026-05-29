@@ -1,4 +1,4 @@
-import type { Project, AgentDefinition, Session, AppConfig } from '../../types'
+import type { Project, AgentDefinition, Session, AppConfig, FileListResult, FilePreviewResult } from '../../types'
 
 let csrfToken = ''
 
@@ -36,6 +36,22 @@ export const api = {
   browseFolder: (path?: string) =>
     request<{ path: string; parent: string | null; entries: { name: string; path: string }[] }>(
       'GET', `/api/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  listProjectFiles: (projectId: string, path?: string) =>
+    request<FileListResult>(
+      'GET',
+      `/api/projects/${projectId}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`
+    ),
+  getProjectFilePreview: (projectId: string, path: string) =>
+    request<FilePreviewResult>(
+      'GET',
+      `/api/projects/${projectId}/files/preview?path=${encodeURIComponent(path)}`
+    ),
+  writeProjectFile: (projectId: string, path: string, content: string) =>
+    request<{ success: boolean }>(
+      'PUT',
+      `/api/projects/${projectId}/files?path=${encodeURIComponent(path)}`,
+      { content }
+    ),
   getAgents: () => request<AgentDefinition[]>('GET', '/api/agents'),
   getSessions: () => request<Session[]>('GET', '/api/sessions'),
   launchSession: (projectId: string, agentId: string, title?: string) =>
