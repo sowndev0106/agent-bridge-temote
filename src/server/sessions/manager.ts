@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { extractLink } from './link-extractor.js'
 import { resolveAgent, resolveCommand } from './agent-catalog.js'
 import { atomicWrite, readJson } from '../core/persistence.js'
+import { buildTerminalEnv } from '../core/terminal-env.js'
 import type { Session, AppConfig } from '../../types.js'
 
 // node-pty provides a real PTY — required because claude (and similar agents)
@@ -158,14 +159,14 @@ export class SessionManager {
     if (!agent) throw new Error(`Unknown agent: ${session.agentId}`)
     if (!agent.enabled) throw new Error(`Agent "${agent.name}" is not enabled in Phase 1`)
 
-    // Merge env: process.env → globalEnv → project.env → agent.env
-    const env = {
-      ...process.env,
+    // Merge env: process.env → globalEnv → project.env → agent.env, then force color
+    // support (strips inherited NO_COLOR/FORCE_COLOR, sets TERM + COLORTERM=truecolor)
+    // so the agent's TUI renders full color instead of being suppressed.
+    const env = buildTerminalEnv({
       ...options.config.globalEnv,
       ...options.project.env,
-      ...agent.env,
-      TERM: 'xterm-256color'
-    } as Record<string, string>
+      ...agent.env
+    })
 
     // node-pty spawns with a real PTY — required for agents that check for TTY (claude, gemini).
     // resolveCommand appends .cmd on Windows for npm-installed global bins.

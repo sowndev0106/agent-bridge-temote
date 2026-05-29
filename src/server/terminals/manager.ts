@@ -1,6 +1,7 @@
 import * as nodePty from 'node-pty'
 import { randomUUID } from 'crypto'
 import { resolveCommand } from '../sessions/agent-catalog.js'
+import { buildTerminalEnv } from '../core/terminal-env.js'
 
 type PtyProcess = ReturnType<typeof nodePty.spawn>
 
@@ -31,7 +32,7 @@ export class TerminalManager {
     const pty = nodePty.spawn(resolvedCmd, [], {
       name: 'xterm-256color',
       cwd: effectiveCwd,
-      env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+      env: buildTerminalEnv(),
       cols: 120,
       rows: 30
     })
