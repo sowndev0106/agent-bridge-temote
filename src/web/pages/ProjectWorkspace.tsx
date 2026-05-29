@@ -8,7 +8,8 @@ import SessionRow from '../components/SessionRow'
 import AgentSelectorModal from '../components/AgentSelectorModal'
 import AddProjectModal from '../components/AddProjectModal'
 import LogsDrawer from '../components/LogsDrawer'
-import { compareSessions, projectHue, initials } from '../lib/format'
+import { compareSessions, projectColor, initials, dayLabel } from '../lib/format'
+import type { Session } from '../../types'
 
 export default function ProjectWorkspace() {
   const { projectId } = useParams()
@@ -17,10 +18,22 @@ export default function ProjectWorkspace() {
   const { setAgentSelectorProjectId } = useUIStore()
 
   const project = projects.find(p => p.id === projectId)
-  const projectSessions = useMemo(
-    () => sessions.filter(s => s.projectId === projectId).slice().sort(compareSessions),
-    [sessions, projectId]
-  )
+
+  // Group this project's sessions by day (most recent day first); within a day,
+  // sort by state (running first) then recency.
+  const groups = useMemo(() => {
+    const mine = sessions.filter(s => s.projectId === projectId)
+    const byDay = new Map<string, Session[]>()
+    for (const s of [...mine].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))) {
+      const key = dayLabel(s.startedAt)
+      if (!byDay.has(key)) byDay.set(key, [])
+      byDay.get(key)!.push(s)
+    }
+    for (const [, arr] of byDay) arr.sort(compareSessions)
+    return [...byDay.entries()]
+  }, [sessions, projectId])
+
+  const total = groups.reduce((n, [, arr]) => n + arr.length, 0)
 
   if (!project) {
     return projects.length === 0
@@ -28,14 +41,13 @@ export default function ProjectWorkspace() {
       : <Navigate to="/" replace />
   }
 
-  const hue = projectHue(project.id)
   const openShell = () => sendWsMessage({ type: 'terminal.create', payload: { cwd: project.path, projectId: project.id } })
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-sm font-semibold text-white" style={{ backgroundColor: `hsl(${hue} 55% 38%)` }}>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-sm font-semibold text-white shadow-sm" style={{ backgroundColor: projectColor(project.id) }}>
             {initials(project.name)}
           </span>
           <div className="min-w-0 flex-1">
@@ -47,20 +59,25 @@ export default function ProjectWorkspace() {
           </button>
         </header>
 
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Sessions ({projectSessions.length})
-            </p>
-          </div>
-          {projectSessions.length === 0 ? (
+        <section className="flex flex-col gap-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+            Sessions ({total})
+          </p>
+          {total === 0 ? (
             <div className="flex min-h-[160px] items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] text-center text-xs text-[var(--color-text-muted)]">
-              No sessions yet. Launch one with &quot;+ New session&quot;.
+              No sessions yet. Launch one with the “+ New session” button.
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {projectSessions.map(s => <SessionRow key={s.id} session={s} />)}
-            </div>
+            groups.map(([day, items]) => (
+              <div key={day} className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-secondary)]">{day}</span>
+                  <span className="h-px flex-1 bg-[var(--color-border-subtle)]" />
+                  <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">{items.length}</span>
+                </div>
+                {items.map(s => <SessionRow key={s.id} session={s} />)}
+              </div>
+            ))
           )}
         </section>
 

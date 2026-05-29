@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Project, Session } from '../../types'
-import { initials, projectHue, formatRelativeTime } from '../lib/format'
+import { initials, projectColor, formatRelativeTime } from '../lib/format'
 
 export default function ProjectCard({ project, sessions }: { project: Project; sessions: Session[] }) {
   const mine = sessions.filter(s => s.projectId === project.id)
@@ -8,13 +8,12 @@ export default function ProjectCard({ project, sessions }: { project: Project; s
   const lastActivity = mine.length
     ? mine.reduce((a, s) => Math.max(a, Date.parse(s.startedAt)), 0)
     : Date.parse(project.createdAt)
-  const hue = projectHue(project.id)
 
   return (
     <Link to={`/project/${project.id}`}
       className="group flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--color-accent)] hover:shadow-[var(--shadow-modal)]">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-xs font-semibold text-white" style={{ backgroundColor: `hsl(${hue} 55% 38%)` }}>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: projectColor(project.id) }}>
           {initials(project.name)}
         </span>
         <span className="min-w-0">
@@ -24,7 +23,9 @@ export default function ProjectCard({ project, sessions }: { project: Project; s
       </div>
       <div className="flex items-center gap-2 text-[11px]">
         {running > 0 ? (
-          <span className="flex items-center gap-1 text-[var(--color-running)]"><span className="h-2 w-2 rounded-full bg-[var(--color-running)]" /> {running} running</span>
+          <span className="flex items-center gap-1 text-[var(--color-running)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--color-running)]" style={{ animation: 'rb-pulse 3s ease-in-out infinite' }} /> {running} running
+          </span>
         ) : (
           <span className="text-[var(--color-text-muted)]">idle</span>
         )}

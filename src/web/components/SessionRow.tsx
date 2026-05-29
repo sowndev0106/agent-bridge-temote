@@ -3,7 +3,7 @@ import { useSessionsStore } from '../stores/sessions'
 import { useUIStore } from '../stores/ui'
 import { useTerminalsStore } from '../stores/terminals'
 import { sendWsMessage } from '../lib/ws'
-import { shortId, formatRelativeTime, formatDuration } from '../lib/format'
+import { shortId, formatDuration, formatClock } from '../lib/format'
 import type { Session } from '../../types'
 
 const STATE_COLORS = {
@@ -21,17 +21,15 @@ const BORDER = {
 } as const
 
 function timeLabel(s: Session): string {
-  if (s.state === 'running' || s.state === 'launching') {
-    return `running ${formatDuration(s.startedAt)}`
-  }
-  const ran = s.stoppedAt ? `ran ${formatDuration(s.startedAt, s.stoppedAt)} · ` : ''
-  const when = s.stoppedAt ?? s.startedAt
-  return `${ran}${formatRelativeTime(when)}`
+  if (s.state === 'running' || s.state === 'launching') return `running ${formatDuration(s.startedAt)}`
+  const dur = s.stoppedAt ? ` · ran ${formatDuration(s.startedAt, s.stoppedAt)}` : ''
+  return `${formatClock(s.startedAt)}${dur}`
 }
 
 export default function SessionRow({ session }: { session: Session }) {
   const { updateSession, removeSession } = useSessionsStore()
   const { setLogsSessionId } = useUIStore()
+  const live = session.state === 'running' || session.state === 'launching'
 
   const stop = async () => updateSession(session.id, await api.stopSession(session.id))
   const restart = async () => updateSession(session.id, await api.restartSession(session.id))
@@ -57,15 +55,20 @@ export default function SessionRow({ session }: { session: Session }) {
   return (
     <article
       data-testid="session-row"
-      className={`flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] p-3 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:gap-3 ${BORDER[session.state]}`}
+      className={`group flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] border-l-[3px] bg-[var(--color-bg-surface)] p-3 shadow-[var(--shadow-card)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-hover)] sm:flex-row sm:items-center sm:gap-3 ${BORDER[session.state]}`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span className={`rb-mono shrink-0 text-[13px] ${STATE_COLORS[session.state]}`} aria-hidden="true">
+        <span
+          className={`shrink-0 text-[13px] ${STATE_COLORS[session.state]}`}
+          aria-hidden="true"
+          style={session.state === 'running' ? { animation: 'rb-pulse 3s ease-in-out infinite' } : undefined}
+        >
           {STATE_ICONS[session.state]}
         </span>
         <div className="min-w-0">
-          <p className="rb-mono truncate text-sm text-[var(--color-text-primary)]">
-            {shortId(session.id)} <span className="text-[var(--color-text-muted)]">· {session.agentId}</span>
+          <p className="truncate text-sm text-[var(--color-text-primary)]">
+            <span className="rb-mono font-medium">{shortId(session.id)}</span>
+            <span className="text-[var(--color-text-muted)]"> · {session.agentId}</span>
           </p>
           <p className="truncate text-[11px] text-[var(--color-text-muted)]">{timeLabel(session)}</p>
         </div>
@@ -91,7 +94,7 @@ export default function SessionRow({ session }: { session: Session }) {
             <button type="button" onClick={remove} className="rb-ghost-button px-3 text-[var(--color-failed)]">Delete</button>
           </>
         )}
-        {(session.state === 'launching' || session.state === 'running') && (
+        {live && (
           <button type="button" onClick={openTerminal} className="rb-ghost-button px-3 text-[var(--color-accent)]"
             title="Open interactive terminal" aria-label={`Open terminal for session ${session.id}`}>
             Term
