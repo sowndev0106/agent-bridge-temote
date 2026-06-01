@@ -224,6 +224,7 @@ export class SessionManager {
   // processes we spawned — never a bare/reused PID (H10).
   async killAll(): Promise<void> {
     await this.ptyAdapter.killAll()
+    this.codexAdapter.killAll()
   }
 
   async restart(sessionId: string, options: { project: { path: string; env: Record<string, string> }; config: AppConfig }): Promise<void> {

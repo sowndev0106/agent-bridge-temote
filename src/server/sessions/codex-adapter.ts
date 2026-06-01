@@ -122,6 +122,8 @@ export class CodexAgentAdapter implements AgentAdapter {
         delta: ''
       }
       this.manager.updateSession(sessionId, { activeTurn: session.activeTurn })
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+      this.manager.logSession(sessionId, `[${timestamp}] [Codex] Started turn: ${params.turnId}`)
     } else if (method === 'item/agentMessage/delta') {
       if (session.activeTurn && session.activeTurn.id === params.turnId) {
         session.activeTurn.delta = (session.activeTurn.delta || '') + params.delta
@@ -162,6 +164,8 @@ export class CodexAgentAdapter implements AgentAdapter {
           timestamp: new Date().toISOString()
         })
         session.activeTurn = null
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+        this.manager.logSession(sessionId, `[${timestamp}] [Codex] Completed turn with status: ${params.status}`)
         this.manager.updateSession(sessionId, {
           chatHistory: session.chatHistory,
           activeTurn: null
@@ -185,6 +189,12 @@ export class CodexAgentAdapter implements AgentAdapter {
     this.manager.updateSession(sessionId, { state: 'stopped', stoppedAt: new Date().toISOString() })
   }
 
+  killAll(): void {
+    for (const sessionId of this.sessions.keys()) {
+      this.stop(sessionId)
+    }
+  }
+
   async sendMessage(sessionId: string, input: string): Promise<void> {
     const session = this.manager.getSession(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
@@ -199,6 +209,9 @@ export class CodexAgentAdapter implements AgentAdapter {
       content: input,
       timestamp: new Date().toISOString()
     })
+
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+    this.manager.logSession(sessionId, `[${timestamp}] [User] ${input}`)
 
     this.manager.updateSession(sessionId, { chatHistory: session.chatHistory })
 
