@@ -127,8 +127,11 @@ export async function createServer() {
   return { fastify, config, manager }
 }
 
-// Start if run directly
-const isMain = process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js')
+// Start if run directly (or via PM2, which wraps with ProcessContainerFork.js).
+// We check argv[1] OR the PM2 env variable that PM2 always sets on managed processes.
+const isMain = process.argv[1]?.endsWith('index.ts')
+  || process.argv[1]?.endsWith('index.js')
+  || !!process.env.pm_id
 if (isMain) {
   const { fastify, config } = await createServer()
   await fastify.listen({ port: config.port, host: config.host })
