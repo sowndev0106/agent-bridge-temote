@@ -76,7 +76,15 @@ class MockCodexAppServer {
 
     if (method === 'turn/start') {
       const threadId = String(params.threadId)
-      const input = String(params.input)
+      let input = ''
+      if (Array.isArray(params.input)) {
+        const first = params.input[0]
+        if (first && first.type === 'text') {
+          input = first.text
+        }
+      } else {
+        input = String(params.input)
+      }
       const thread = this.getThread(threadId)
       const turnId = `turn_${++this.turnSeq}`
       thread.turnIds.push(turnId)

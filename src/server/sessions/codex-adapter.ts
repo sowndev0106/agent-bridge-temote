@@ -187,7 +187,13 @@ export class CodexAgentAdapter implements AgentAdapter {
 
     await state.client.sendRequest('turn/start', {
       threadId: session.providerSessionId,
-      input
+      input: [
+        {
+          type: 'text',
+          text: input,
+          text_elements: []
+        }
+      ]
     })
   }
 
