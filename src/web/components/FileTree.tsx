@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { UncontrolledTreeEnvironment, Tree, type TreeItem } from 'react-complex-tree'
-import { ChevronRight, Folder, FileText } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { createFileTreeProvider, type FileTreeData } from '../lib/fileTreeProvider'
+import { fileIconSpec } from '../lib/fileIcons'
 import { useEditorStore } from '../stores/editor'
 import type { Project } from '../../types'
 
@@ -32,12 +33,20 @@ export default function FileTree({ project }: { project: Project }) {
             <span className="w-[14px] shrink-0" />
           )
         }
-        renderItemTitle={({ item, title }) => {
-          const isFolder = item.isFolder
-          const Icon = isFolder ? Folder : FileText
+        renderItemTitle={({ item, title, context }) => {
+          if (item.isFolder) {
+            const FolderIcon = context.isExpanded ? FolderOpen : Folder
+            return (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <FolderIcon size={15} className="shrink-0 text-[var(--color-text-muted)]" />
+                <span className="truncate">{title}</span>
+              </span>
+            )
+          }
+          const { Icon, color } = fileIconSpec(item.data.entry?.name ?? title)
           return (
             <span className="flex min-w-0 items-center gap-1.5">
-              <Icon size={15} className="shrink-0 text-[var(--color-text-muted)]" />
+              <Icon size={15} className="shrink-0" style={{ color }} />
               <span className="truncate">{title}</span>
             </span>
           )

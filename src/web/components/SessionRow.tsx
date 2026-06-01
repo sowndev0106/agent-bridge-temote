@@ -1,4 +1,4 @@
-import { ExternalLink, RotateCw, ScrollText, Square, SquareTerminal, Trash2 } from 'lucide-react'
+import { ExternalLink, Play, ScrollText, Square, SquareTerminal, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
 import { useUIStore } from '../stores/ui'
@@ -107,7 +107,7 @@ export default function SessionRow({ session }: { session: Session }) {
         )}
         {(session.state === 'stopped' || session.state === 'failed') && (
           <button type="button" onClick={restart} className={ACT} title="Restart" aria-label="Restart session">
-            <RotateCw size={15} />
+            <Play size={15} />
           </button>
         )}
         {live && (
