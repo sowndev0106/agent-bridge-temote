@@ -32,9 +32,9 @@ export const BUILT_IN_AGENTS: AgentDefinition[] = [
     id: 'codex',
     name: 'Codex',
     command: 'codex',
-    args: ['app-server', '--listen', 'ws://127.0.0.1:{{port}}'],
+    args: [],
     env: {},
-    linkPattern: 'ws://127\\.0\\.0\\.1:\\d+',
+    linkPattern: null,
     enabled: true
   }
 ]
