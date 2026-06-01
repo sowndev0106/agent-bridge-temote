@@ -241,6 +241,9 @@ Required so agents (which inherit the PTY terminal type) initialise correctly.
 **Agent catalog is the single source of truth:**
 Agent IDs (`claude`, `gemini`, `opencode`, `codex`) must match across `BUILT_IN_AGENTS`, API responses, and config validation. Never hardcode agent names outside `agent-catalog.ts`.
 
+**AI Provider Session Resuming & Session-ID Support:**
+For future AI providers (e.g., Codex, OpenCode, Gemini CLI in Phase 2) that support session restoration, reactivation/restarting should support passing a `resume` command/flag and the corresponding `session-id` (e.g., `codex resume <session-id>`) if the provider requires it to restore context/session state, rather than just spawning a clean, empty session. Keep this architecture in mind when integrating future AI providers.
+
 **Error response envelope:**
 All API responses use:
 ```ts

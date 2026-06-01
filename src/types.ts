@@ -14,6 +14,7 @@ export interface Session {
   id: string
   projectId: string
   agentId: string
+  providerSessionId: string | null
   title: string | null
   branch: string | null
   pid: number | null
@@ -115,3 +116,21 @@ export type WsEvent =
   | { type: 'session.updated'; payload: Omit<Session, 'logs'> }
   | { type: 'session.log'; payload: { sessionId: string; line: string } }
   | TerminalServerEvent
+
+// --- Git status and diff types ---
+
+export interface GitFileStatus {
+  path: string
+  status: string
+}
+
+export interface GitStatusResult {
+  isGit: boolean
+  files: GitFileStatus[]
+}
+
+export interface GitFileDiffResult {
+  path: string
+  baseContent: string
+  currentContent: string
+}

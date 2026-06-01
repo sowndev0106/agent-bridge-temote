@@ -26,7 +26,7 @@ function meta(s: Session): string {
 
 const ACT = 'flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)]'
 
-export default function SessionRow({ session }: { session: Session }) {
+export default function SessionRow({ session, compact = false }: { session: Session; compact?: boolean }) {
   const { updateSession, removeSession } = useSessionsStore()
   const { setLogsSessionId, addToast } = useUIStore()
   const live = session.state === 'running' || session.state === 'launching'
@@ -61,12 +61,19 @@ export default function SessionRow({ session }: { session: Session }) {
     })
   }
 
+  const actClass = compact
+    ? 'flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)]'
+    : ACT
+  const iconSize = (normalSize: number) => compact ? normalSize - 2 : normalSize
+
   return (
     <article
       data-testid="session-row"
-      className="group flex items-center gap-4 px-4 py-3.5 transition-colors first:rounded-t-[var(--radius-lg)] last:rounded-b-[var(--radius-lg)] hover:bg-[var(--color-bg-hover)]"
+      className={`group flex items-start transition-colors first:rounded-t-[var(--radius-lg)] last:rounded-b-[var(--radius-lg)] hover:bg-[var(--color-bg-hover)] ${
+        compact ? 'gap-2.5 pl-[22px] pr-2 py-2' : 'gap-4 px-4 py-3.5'
+      }`}
     >
-      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center" title={session.state} aria-hidden="true">
+      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center mt-[5px]" title={session.state} aria-hidden="true">
         <span className={`h-2.5 w-2.5 rounded-full ${DOT_BG[session.state]}`} />
         {session.state === 'running' && (
           <span className={`absolute h-2.5 w-2.5 rounded-full ${DOT_BG.running}`} style={{ animation: 'rb-ping 1.8s cubic-bezier(0,0,0.2,1) infinite' }} />
@@ -99,28 +106,28 @@ export default function SessionRow({ session }: { session: Session }) {
         </a>
       )}
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className={`flex shrink-0 items-center ${compact ? 'gap-0 opacity-0 group-hover:opacity-100 transition-opacity mt-[3px]' : 'gap-0.5 mt-[4px]'}`}>
         {session.state === 'running' && (
-          <button type="button" onClick={stop} className={ACT} title="Stop" aria-label="Stop session">
-            <Square size={15} />
+          <button type="button" onClick={stop} className={actClass} title="Stop" aria-label="Stop session">
+            <Square size={iconSize(15)} />
           </button>
         )}
         {(session.state === 'stopped' || session.state === 'failed') && (
-          <button type="button" onClick={restart} className={ACT} title="Restart" aria-label="Restart session">
-            <Play size={15} />
+          <button type="button" onClick={restart} className={actClass} title="Restart" aria-label="Restart session">
+            <Play size={iconSize(15)} />
           </button>
         )}
         {live && (
-          <button type="button" onClick={openTerminal} className={`${ACT} hover:text-[var(--color-accent)]`} title="Open terminal" aria-label="Open terminal">
-            <SquareTerminal size={16} />
+          <button type="button" onClick={openTerminal} className={`${actClass} hover:text-[var(--color-accent)]`} title="Open terminal" aria-label="Open terminal">
+            <SquareTerminal size={iconSize(16)} />
           </button>
         )}
-        <button type="button" onClick={() => setLogsSessionId(session.id)} className={ACT} title="Logs" aria-label="View logs">
-          <ScrollText size={16} />
+        <button type="button" onClick={() => setLogsSessionId(session.id)} className={actClass} title="Logs" aria-label="View logs">
+          <ScrollText size={iconSize(16)} />
         </button>
         {(session.state === 'stopped' || session.state === 'failed') && (
-          <button type="button" onClick={remove} className={`${ACT} hover:text-[var(--color-failed)]`} title="Delete" aria-label="Delete session">
-            <Trash2 size={15} />
+          <button type="button" onClick={remove} className={`${actClass} hover:text-[var(--color-failed)]`} title="Delete" aria-label="Delete session">
+            <Trash2 size={iconSize(15)} />
           </button>
         )}
       </div>

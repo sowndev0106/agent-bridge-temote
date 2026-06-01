@@ -1,4 +1,4 @@
-import type { Project, AgentDefinition, Session, AppConfig, FileListResult, FilePreviewResult } from '../../types'
+import type { Project, AgentDefinition, Session, AppConfig, FileListResult, FilePreviewResult, GitStatusResult, GitFileDiffResult } from '../../types'
 
 let csrfToken = ''
 
@@ -70,5 +70,7 @@ export const api = {
   restartSession: (id: string) => request<Session>('POST', `/api/sessions/${id}/restart`),
   deleteSession: (id: string) => request<null>('DELETE', `/api/sessions/${id}`),
   getConfig: () => request<SafeConfig>('GET', '/api/config'),
-  updateConfig: (data: Partial<AppConfig>) => request<SafeConfig>('PUT', '/api/config', data)
+  updateConfig: (data: Partial<AppConfig>) => request<SafeConfig>('PUT', '/api/config', data),
+  getGitStatus: (projectId: string) => request<GitStatusResult>('GET', `/api/projects/${projectId}/git/status`),
+  getGitDiff: (projectId: string, path: string) => request<GitFileDiffResult>('GET', `/api/projects/${projectId}/git/diff?path=${encodeURIComponent(path)}`)
 }

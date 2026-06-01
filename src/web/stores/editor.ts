@@ -6,12 +6,14 @@ export interface EditorTab {
   path: string        // project-relative path
   title: string       // basename
   dirty: boolean
+  type?: 'edit' | 'diff'
 }
 
 interface EditorStore {
   tabs: EditorTab[]
   activeTabId: string | null
   openFile: (projectId: string, path: string) => void
+  openDiff: (projectId: string, path: string) => void
   closeTab: (id: string) => void
   setActive: (id: string) => void
   setDirty: (id: string, dirty: boolean) => void
@@ -28,7 +30,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
     const id = tabId(projectId, path)
     if (state.tabs.some(t => t.id === id)) return { activeTabId: id }
     return {
-      tabs: [...state.tabs, { id, projectId, path, title: basename(path), dirty: false }],
+      tabs: [...state.tabs, { id, projectId, path, title: basename(path), dirty: false, type: 'edit' }],
+      activeTabId: id
+    }
+  }),
+  openDiff: (projectId, path) => set(state => {
+    const id = `${projectId}:diff:${path}`
+    if (state.tabs.some(t => t.id === id)) return { activeTabId: id }
+    return {
+      tabs: [...state.tabs, { id, projectId, path, title: `Diff: ${basename(path)}`, dirty: false, type: 'diff' }],
       activeTabId: id
     }
   }),

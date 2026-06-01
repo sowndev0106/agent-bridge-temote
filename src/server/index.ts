@@ -16,6 +16,7 @@ import { projectFileRoutes } from './routes/project-files.js'
 import { fsRoutes } from './routes/fs.js'
 import { agentRoutes } from './routes/agents.js'
 import { sessionRoutes } from './routes/sessions.js'
+import { gitRoutes } from './routes/git.js'
 import { createWsServer } from './ws/index.js'
 import { SessionManager } from './sessions/manager.js'
 import { TerminalManager } from './terminals/manager.js'
@@ -112,6 +113,7 @@ export async function createServer() {
     await app.register(agentRoutes)
     await app.register(configRoutes)
     await app.register((a) => sessionRoutes(a, manager))
+    await app.register(gitRoutes)
   })
 
   fastify.setNotFoundHandler(async (_req, reply) => {

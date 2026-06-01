@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { SessionManager } from '../sessions/manager.js'
 import { detectGitBranch } from '../sessions/branch.js'
+import { resolveClaudeProviderSessionId } from '../sessions/claude-history.js'
 import { loadConfig } from '../core/config.js'
 import { readJson } from '../core/persistence.js'
 import { PROJECTS_FILE } from '../core/paths.js'
@@ -62,6 +63,11 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     const otherLive = manager.listSessions().filter(s => s.id !== id && (s.state === 'running' || s.state === 'launching'))
     if (otherLive.length >= config.maxConcurrentSessions) {
       return reply.code(429).send({ ok: false, error: { code: 'max_sessions_reached', message: `Maximum ${config.maxConcurrentSessions} concurrent sessions reached` } })
+    }
+
+    if (session.agentId === 'claude' && !session.providerSessionId) {
+      const providerSessionId = await resolveClaudeProviderSessionId(project.path)
+      if (providerSessionId) manager.updateSession(id, { providerSessionId })
     }
 
     manager.restart(id, { project: { path: project.path, env: project.env }, config }).catch(err => {

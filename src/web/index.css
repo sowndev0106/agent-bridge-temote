@@ -210,3 +210,22 @@ button {
 .xterm-screen {
   min-width: 0;
 }
+
+@keyframes rb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rb-slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: rb-fade-in 200ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: rb-slide-in-left 250ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+

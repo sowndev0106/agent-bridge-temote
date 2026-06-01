@@ -14,6 +14,10 @@ function isPidAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true } catch { return false }
 }
 
+function isClaudeCommand(command: string): boolean {
+  return /(^|[/\\])claude(\.(cmd|bat|exe))?$/i.test(command)
+}
+
 // onData delivers ARBITRARY chunks, not whole lines — a line (including the remote link)
 // can be split across two chunks. Buffer until newline so the link pattern never runs
 // against a partial line. Extracted so the split-chunk case is unit-testable.
@@ -81,6 +85,7 @@ export class SessionManager {
       // Back-compat: pre-Phase-2 records have no `title` / `branch` fields.
       if (!('title' in session)) (session as Session).title = null
       if (!('branch' in session)) (session as Session).branch = null
+      if (!('providerSessionId' in session)) (session as Session).providerSessionId = null
       // PTY handles do not survive a RemoteBridge restart, so we can no longer
       // control a previously running agent. Always mark prior launching/running
       // sessions as stopped. Do NOT kill by bare PID — it may have been reused by
@@ -101,10 +106,12 @@ export class SessionManager {
 
   createSession(init: { projectId: string; agentId: string; title?: string | null; branch?: string | null }): Session {
     const trimmed = init.title?.trim()
+    const id = randomUUID()
     const session: Session = {
-      id: randomUUID(),
+      id,
       projectId: init.projectId,
       agentId: init.agentId,
+      providerSessionId: init.agentId === 'claude' ? id : null,
       title: trimmed && trimmed.length > 0 ? trimmed.slice(0, 80) : null,
       branch: init.branch ?? null,
       pid: null,
@@ -157,7 +164,7 @@ export class SessionManager {
   async launch(sessionId: string, options: {
     project: { path: string; env: Record<string, string> }
     config: AppConfig
-  }): Promise<void> {
+  }, isRestart = false): Promise<void> {
     const session = this.getSession(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
 
@@ -174,9 +181,25 @@ export class SessionManager {
       ...agent.env
     })
 
+    let args = [...agent.args]
+    if (session.agentId === 'claude') {
+      // `providerSessionId` is the Claude Code conversation UUID. For legacy sessions it
+      // may be filled from Claude's local jsonl filename, then restart must resume that
+      // exact provider session rather than the RemoteBridge record id.
+      const claudeSessionId = session.providerSessionId ?? session.id
+      if (isRestart && session.providerSessionId) {
+        args = isClaudeCommand(agent.command)
+          ? ['--resume', claudeSessionId, ...args]
+          : [...args, '--resume', claudeSessionId]
+      } else {
+        args = [...args, '--session-id', claudeSessionId]
+      }
+      if (!session.providerSessionId) session.providerSessionId = claudeSessionId
+    }
+
     // node-pty spawns with a real PTY — required for agents that check for TTY (claude, gemini).
     // resolveCommand appends .cmd on Windows for npm-installed global bins.
-    const child = nodePty.spawn(resolveCommand(agent.command), agent.args, {
+    const child = nodePty.spawn(resolveCommand(agent.command), args, {
       name: 'xterm-256color',
       cwd: options.project.path,
       env,
@@ -187,6 +210,12 @@ export class SessionManager {
     session.pid = child.pid
     this.processes.set(sessionId, child)
     this.persistSessions() // persist PID immediately
+
+    // Log the exact command run with timestamp
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+    const systemLaunchLog = `[${timestamp}] [System] Launching agent: ${agent.command} ${args.join(' ')}`
+    session.logs.push(systemLaunchLog)
+    this.opts.onEvent({ type: 'session.log', payload: { sessionId, line: systemLaunchLog } })
 
     // Set link-extract timeout
     const timeout = setTimeout(() => {
@@ -213,12 +242,14 @@ export class SessionManager {
       }
 
       // Strip ANSI escape codes before logging and link extraction
-      const clean = line.replace(/\x1b\[[0-9;?=>]*[a-zA-Z]/g, '').trim()
+      const clean = stripTerminalSequences(line)
       if (!clean) return
 
-      s.logs.push(clean)
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+      const logWithTime = `[${timestamp}] ${clean}`
+      s.logs.push(logWithTime)
       if (s.logs.length > this.opts.keepSessionLogsLines) s.logs.shift()
-      this.opts.onEvent({ type: 'session.log', payload: { sessionId, line: clean } })
+      this.opts.onEvent({ type: 'session.log', payload: { sessionId, line: logWithTime } })
 
       if (s.state === 'launching') {
         const link = extractLink(clean, agent.linkPattern)
@@ -337,7 +368,6 @@ export class SessionManager {
     const session = this.getSession(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     this.stop(sessionId)
-    await new Promise(r => setTimeout(r, 200))
     this.updateSession(sessionId, {
       state: 'launching',
       remoteLink: null,
@@ -347,6 +377,31 @@ export class SessionManager {
       stoppedAt: null,
       error: null
     })
-    await this.launch(sessionId, options)
+    await new Promise(r => setTimeout(r, 200))
+    await this.launch(sessionId, options, true)
   }
+}
+
+/**
+ * Strips all ANSI escape codes, terminal control sequences (OSC, CSI, etc.), 
+ * and special characters from terminal output lines.
+ */
+export function stripTerminalSequences(line: string): string {
+  if (!line) return ''
+  return line
+    // 1. Strip complete OSC sequences (e.g., title changes, hyperlinks like \x1b]8;;...)
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    // 2. Strip incomplete OSC sequences at the end of the line
+    .replace(/\x1b\][^\x07\x1b]*$/g, '')
+    // 3. Strip complete CSI sequences (e.g., colors, styles, cursor positioning, and newer protocols like \x1b[<u)
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, '')
+    // 4. Strip incomplete CSI sequences at the end of the line
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*$/g, '')
+    // 5. Strip other Escape sequences (e.g., save/restore cursor \x1b7, \x1b8, character sets like \x1b(B)
+    .replace(/\x1b[\x20-\x2f]*[\x30-\x7e]/g, '')
+    // 6. Strip any leftover raw ESC characters
+    .replace(/\x1b/g, '')
+    // 7. Strip carriage returns, newlines (if any passed in tests), and trim
+    .replace(/[\r\n]/g, '')
+    .trim()
 }

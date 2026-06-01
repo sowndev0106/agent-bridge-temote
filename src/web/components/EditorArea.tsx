@@ -7,6 +7,8 @@ import SessionsPanel from './SessionsPanel'
 // Lazy-load the Monaco panel so monaco-editor lands in its own async chunk,
 // fetched only when the user opens a file (keeps the initial bundle small).
 const MonacoFilePanel = lazy(() => import('./MonacoFilePanel'))
+const MonacoDiffPanel = lazy(() => import('./MonacoDiffPanel'))
+const SESSIONS_PANEL_ID = 'sessions'
 
 function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
   const project = useProjectsStore(s => s.projects.find(p => p.id === props.params.projectId))
@@ -14,10 +16,15 @@ function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
   return <SessionsPanel project={project} />
 }
 
-function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: string; path: string }>) {
+function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: string; path: string; type?: 'edit' | 'diff' }>) {
+  const type = props.params.type || 'edit'
   return (
     <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--color-bg-base)] text-xs text-[var(--color-text-muted)]">Loading editor…</div>}>
-      <MonacoFilePanel tabId={props.params.tabId} projectId={props.params.projectId} path={props.params.path} />
+      {type === 'diff' ? (
+        <MonacoDiffPanel tabId={props.params.tabId} projectId={props.params.projectId} path={props.params.path} />
+      ) : (
+        <MonacoFilePanel tabId={props.params.tabId} projectId={props.params.projectId} path={props.params.path} />
+      )}
     </Suspense>
   )
 }
@@ -31,11 +38,37 @@ export default function EditorArea({ projectId }: { projectId: string }) {
   const setActive = useEditorStore(s => s.setActive)
   const closeTab = useEditorStore(s => s.closeTab)
 
+  const ensureSessionsPanel = (api: DockviewApi) => {
+    const existing = api.getPanel(SESSIONS_PANEL_ID)
+    if (existing) {
+      existing.api.setActive()
+      return
+    }
+
+    api.addPanel({
+      id: SESSIONS_PANEL_ID,
+      component: 'sessions',
+      params: { projectId },
+      title: 'Sessions'
+    })
+  }
+
   const onReady = (event: DockviewReadyEvent) => {
     apiRef.current = event.api
-    event.api.addPanel({ id: 'sessions', component: 'sessions', params: { projectId }, title: 'Sessions' })
-    event.api.onDidActivePanelChange(p => { if (p && p.id !== 'sessions') setActive(p.id) })
-    event.api.onDidRemovePanel(p => { if (p.id !== 'sessions') closeTab(p.id) })
+    ensureSessionsPanel(event.api)
+    event.api.onDidActivePanelChange(p => { if (p && p.id !== SESSIONS_PANEL_ID) setActive(p.id) })
+    event.api.onDidRemovePanel(p => {
+      if (p.id !== SESSIONS_PANEL_ID) {
+        closeTab(p.id)
+      }
+
+      queueMicrotask(() => {
+        const api = apiRef.current
+        if (api && useEditorStore.getState().tabs.length === 0) {
+          ensureSessionsPanel(api)
+        }
+      })
+    })
   }
 
   // Sync store tabs → dockview panels.
@@ -47,13 +80,16 @@ export default function EditorArea({ projectId }: { projectId: string }) {
         api.addPanel({
           id: tab.id,
           component: 'file',
-          params: { tabId: tab.id, projectId: tab.projectId, path: tab.path },
+          params: { tabId: tab.id, projectId: tab.projectId, path: tab.path, type: tab.type },
           title: tab.title
         })
       }
     }
     for (const panel of api.panels) {
-      if (panel.id !== 'sessions' && !tabs.some(t => t.id === panel.id)) api.removePanel(panel)
+      if (panel.id !== SESSIONS_PANEL_ID && !tabs.some(t => t.id === panel.id)) api.removePanel(panel)
+    }
+    if (tabs.length === 0) {
+      ensureSessionsPanel(api)
     }
   }, [tabs])
 
