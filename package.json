@@ -3,9 +3,37 @@
   "version": "0.1.0",
   "description": "Launch AI coding agents and surface their remote links in a browser UI",
   "type": "module",
+  "license": "MIT",
+  "author": "sowndev <sowndev0106@gmail.com>",
+  "homepage": "https://github.com/sowndev0106/agent-bridge-temote#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sowndev0106/agent-bridge-temote.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sowndev0106/agent-bridge-temote/issues"
+  },
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "claude",
+    "cli",
+    "remote",
+    "terminal",
+    "web-ui"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/server/index.js",
   "bin": {
     "remotebridge": "./dist/bin/remotebridge.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "node --env-file-if-exists .env ./node_modules/.bin/tsx watch src/server/index.ts",

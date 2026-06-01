@@ -28,7 +28,7 @@ const ACT = 'flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)]
 
 export default function SessionRow({ session, compact = false }: { session: Session; compact?: boolean }) {
   const { updateSession, removeSession } = useSessionsStore()
-  const { setLogsSessionId, addToast } = useUIStore()
+  const { setLogsSessionId, addToast, setCodexRemoteSessionId } = useUIStore()
   const live = session.state === 'running' || session.state === 'launching'
 
   const stop = async () => {
@@ -99,11 +99,19 @@ export default function SessionRow({ session, compact = false }: { session: Sess
       </div>
 
       {session.state === 'running' && session.remoteLink && (
-        <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
-          className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
-          title="Open remote control">
-          Open Remote <ExternalLink size={13} />
-        </a>
+        session.agentId === 'codex' ? (
+          <button type="button" onClick={() => setCodexRemoteSessionId(session.id)}
+            className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
+            title="Open remote connection settings">
+            Open Remote <ExternalLink size={13} />
+          </button>
+        ) : (
+          <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
+            className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
+            title="Open remote control">
+            Open Remote <ExternalLink size={13} />
+          </a>
+        )
       )}
 
       <div className={`flex shrink-0 items-center ${compact ? 'gap-0 opacity-0 group-hover:opacity-100 transition-opacity mt-[3px]' : 'gap-0.5 mt-[4px]'}`}>
