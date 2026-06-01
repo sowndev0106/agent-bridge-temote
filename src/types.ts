@@ -41,6 +41,7 @@ export interface AgentOverride {
   args?: string[]
   env?: Record<string, string>
   linkPattern?: string
+  enabled?: boolean
 }
 
 export interface AppConfig {

@@ -32,10 +32,10 @@ export const BUILT_IN_AGENTS: AgentDefinition[] = [
     id: 'codex',
     name: 'Codex',
     command: 'codex',
-    args: [],
+    args: ['app-server', '--listen', 'ws://127.0.0.1:{{port}}'],
     env: {},
-    linkPattern: 'https?://[^\\s]+',
-    enabled: false   // Phase 2
+    linkPattern: 'ws://127.0.0.1:\\\\d+',
+    enabled: true
   }
 ]
 
@@ -48,7 +48,8 @@ export function resolveAgent(agentId: string, configOverrides: AppConfig['agents
     command: override.command ?? base.command,
     args: override.args ?? base.args,
     env: { ...base.env, ...override.env },
-    linkPattern: override.linkPattern ?? base.linkPattern
+    linkPattern: override.linkPattern ?? base.linkPattern,
+    enabled: override.enabled ?? base.enabled
   }
 }
 

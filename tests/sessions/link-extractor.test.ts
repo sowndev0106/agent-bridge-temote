@@ -23,4 +23,10 @@ describe('extractLink', () => {
     const generic = 'https?://[^\\s]+'
     expect(extractLink('Visit https://example.com/session', generic)).toBe('https://example.com/session')
   })
+
+  it('extracts Codex remote WebSocket link from stdout', () => {
+    const line = 'listening on: ws://127.0.0.1:4098'
+    const codexPattern = 'ws://127.0.0.1:\\d+'
+    expect(extractLink(line, codexPattern)).toBe('ws://127.0.0.1:4098')
+  })
 })
