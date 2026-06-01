@@ -47,7 +47,6 @@ export class CodexAppServerClient {
   private handleLine(line: string) {
     try {
       const msg = JSON.parse(line)
-      if (msg.jsonrpc !== '2.0') return
 
       if ('id' in msg && msg.id !== null && msg.id !== undefined) {
         // Response
