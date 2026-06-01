@@ -4,6 +4,7 @@ import { AgentAdapter, LaunchOptions } from './adapter.js'
 import { SessionManager } from './manager.js'
 import { CodexAppServerClient, JsonRpcNotification } from './codex-client.js'
 import { ChatMessage, CodexActiveTurn } from '../../types.js'
+import { resolveAgent, resolveCommand } from './agent-catalog.js'
 
 interface SessionState {
   process: any
@@ -23,8 +24,12 @@ export class CodexAgentAdapter implements AgentAdapter {
     const session = this.manager.getSession(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
 
+    const agent = resolveAgent('codex', options.config.agents)
+    const cmd = agent?.command || 'codex'
+    const args = agent?.args && agent.args.length > 0 ? agent.args : ['app-server', '--listen', 'stdio://']
+
     // Spawn codex app-server
-    const child = spawn('codex', ['app-server', '--listen', 'stdio://'], {
+    const child = spawn(resolveCommand(cmd), args, {
       cwd: options.project.path,
       env: {
         ...process.env,
@@ -32,6 +37,20 @@ export class CodexAgentAdapter implements AgentAdapter {
         ...options.project.env,
         TERM: 'xterm-256color'
       }
+    })
+
+    const client = new CodexAppServerClient(child.stdout, child.stdin)
+
+    child.on('error', (err) => {
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+      this.manager.logSession(sessionId, `[${timestamp}] [System] Error spawning Codex process: ${err.message}`)
+      client.destroy()
+    })
+
+    child.on('exit', (code, signal) => {
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
+      this.manager.logSession(sessionId, `[${timestamp}] [System] Codex process exited with code ${code} (signal: ${signal})`)
+      client.destroy()
     })
 
     session.pid = child.pid ?? null
@@ -43,8 +62,6 @@ export class CodexAgentAdapter implements AgentAdapter {
         this.manager.logSession(sessionId, `[stderr] ${line}`)
       }
     })
-
-    const client = new CodexAppServerClient(child.stdout, child.stdin)
     const pendingApprovals = new Map<string, (decision: 'approved' | 'rejected') => void>()
 
     this.sessions.set(sessionId, {

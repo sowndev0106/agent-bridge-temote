@@ -6,6 +6,7 @@ import { loadConfig } from '../core/config.js'
 import { readJson } from '../core/persistence.js'
 import { PROJECTS_FILE } from '../core/paths.js'
 import type { Project } from '../../types.js'
+import { resolveAgent } from '../sessions/agent-catalog.js'
 
 export async function sessionRoutes(fastify: FastifyInstance, manager: SessionManager) {
   fastify.get('/api/sessions', async () => {
@@ -17,6 +18,14 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     if (!projectId || !agentId) return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"projectId" and "agentId" are required' } })
 
     const config = await loadConfig()
+
+    const agent = resolveAgent(agentId, config.agents)
+    if (!agent) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Unknown agent: ${agentId}` } })
+    }
+    if (!agent.enabled) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Agent "${agent.name}" is not enabled` } })
+    }
 
     const runningSessions = manager.listSessions().filter(s => s.state === 'running' || s.state === 'launching')
     if (runningSessions.length >= config.maxConcurrentSessions) {
@@ -56,6 +65,14 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     if (!project) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Project not found' } })
 
     const config = await loadConfig()
+
+    const agent = resolveAgent(session.agentId, config.agents)
+    if (!agent) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Unknown agent: ${session.agentId}` } })
+    }
+    if (!agent.enabled) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Agent "${agent.name}" is not enabled` } })
+    }
 
     // Enforce the concurrency cap on restart too — a restart re-enters 'launching', so a
     // stopped session restarting while others run could otherwise push past the cap. Count

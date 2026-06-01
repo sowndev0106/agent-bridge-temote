@@ -36,6 +36,49 @@ The filename `docs/REQUIMENT.md` matches this project's convention — do not re
 
 All commands assume you are at the repo root. Source does not exist yet until Task A1 is complete; commands are from the plan and will work once scaffolded.
 
+---
+
+## Publishing to npm
+
+The package name is `agent-remote-control`. The `prepublishOnly` hook runs `npm run build` automatically.
+
+**One-time setup:**
+```bash
+npm login   # authenticate with your npm account
+```
+
+**Preview what will be published (dry run):**
+```bash
+npm pack --dry-run
+# Confirm dist/, README.md, LICENSE appear — no source or test files
+```
+
+**Publish:**
+```bash
+npm publish
+```
+
+**Bump version then publish:**
+```bash
+npm version patch   # 0.1.0 → 0.1.1  (bug fixes)
+npm version minor   # 0.1.0 → 0.2.0  (new features, backward-compatible)
+npm version major   # 0.1.0 → 1.0.0  (breaking changes)
+npm publish
+```
+
+**What gets included** (controlled by `files` in `package.json`):
+```
+dist/         compiled server + CLI + bundled web UI
+README.md
+LICENSE
+```
+
+**What is intentionally excluded:** `src/`, `tests/`, `docs/`, `node_modules/`, config dot-files, scratch scripts.
+
+**Note on native modules:** `node-pty` is a native addon. It ships prebuilt binaries via `node-pre-gyp`; users without a matching prebuilt will need a C++ build toolchain. `arc install` smoke-tests `node-pty` on first run and prints a per-OS remediation message if it fails (ADR-0001).
+
+---
+
 ```bash
 # Install dependencies (after package.json is created in Task A1)
 npm install
@@ -69,6 +112,7 @@ npx tsc --noEmit
 ```bash
 npx tsx bin/arc.ts help
 npx tsx bin/arc.ts config
+npx tsx bin/arc.ts start --port 5050 --log-level debug
 ```
 
 ---
@@ -421,6 +465,8 @@ Invoke **`superpowers:finishing-a-development-branch`** to choose integration pa
 ## Key Conventions
 
 **Config defaults:** Every config key must have a default in `CONFIG_DEFAULTS` (`src/server/core/config.ts`). A user running `arc start` with zero config (other than password, which blocks start when host=0.0.0.0) must get a working server.
+
+**`arc start` inline flags:** `arc start` accepts `--port`, `--host`, `--password`, `--log-level`, `--session-ttl`, `--max-sessions`, `--keep-logs`, and `--link-timeout`. When any flag is present the CLI merges the new values into the current `config.json`, validates, saves, then restarts the PM2 process (or starts it if not yet registered). Password values are bcrypt-hashed before saving (H4). This is an alias for the two-step `arc config set <key> <value>` + `arc restart` workflow.
 
 **Cross-platform process spawning:** Use `node-pty` — not `child_process.spawn`, not `execa`, not `cross-spawn`. On Windows, call `resolveCommand(command)` from `agent-catalog.ts` to append `.cmd` before passing to node-pty.
 

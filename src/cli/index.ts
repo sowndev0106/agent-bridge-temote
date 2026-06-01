@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { loadConfig, CONFIG_DEFAULTS, validateConfig, CONFIG_FILE, CONFIG_DIR } from '../server/core/config.js'
+import type { AppConfig } from '../types.js'
 import { atomicWrite, ensureDir } from '../server/core/persistence.js'
 import { hashPassword, generateSecret } from '../server/core/auth.js'
 import { execSync, spawnSync } from 'child_process'
@@ -16,9 +17,11 @@ program
 // ─── help ────────────────────────────────────────────────────────────────────
 program.addHelpText('after', `
 Examples:
-  arc install          Set up PM2 service and initial config
-  arc start            Start the server
-  arc status           Show server status and URL
+  arc install                      Set up PM2 service and initial config
+  arc start                        Start the server
+  arc start --port 5050            Update port in config.json, then start
+  arc start --port 5050 --host 127.0.0.1 --password mypass
+  arc status                       Show server status and URL
   arc config set port 3000
 
 Config keys: port, host, password, sessionTTL, linkExtractTimeout,
@@ -82,9 +85,48 @@ program
   })
 
 // ─── start ───────────────────────────────────────────────────────────────────
-program.command('start').description('Start the server via PM2').action(() => {
-  spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
-})
+program
+  .command('start')
+  .description('Start the server via PM2 (flags persist to config.json)')
+  .option('--port <n>', 'Port to listen on')
+  .option('--host <h>', 'Host to bind to')
+  .option('--password <p>', 'App password (bcrypt-hashed before saving)')
+  .option('--log-level <l>', 'Log level: debug | info | warn | error')
+  .option('--session-ttl <n>', 'Session TTL in seconds')
+  .option('--max-sessions <n>', 'Max concurrent sessions')
+  .option('--keep-logs <n>', 'Lines of session logs to keep per session')
+  .option('--link-timeout <n>', 'Link extract timeout in seconds')
+  .action(async (opts) => {
+    const hasOverrides = Object.values(opts).some(v => v !== undefined)
+
+    if (hasOverrides) {
+      const cfg = await loadConfig()
+
+      if (opts.port !== undefined)       cfg.port = Number(opts.port)
+      if (opts.host !== undefined)       cfg.host = opts.host
+      if (opts.password !== undefined) {
+        cfg.password = await hashPassword(opts.password)
+        console.log('Password updated (stored as bcrypt hash).')
+      }
+      if (opts.logLevel !== undefined)   cfg.logLevel = opts.logLevel as AppConfig['logLevel']
+      if (opts.sessionTtl !== undefined) cfg.sessionTTL = Number(opts.sessionTtl)
+      if (opts.maxSessions !== undefined) cfg.maxConcurrentSessions = Number(opts.maxSessions)
+      if (opts.keepLogs !== undefined)   cfg.keepSessionLogsLines = Number(opts.keepLogs)
+      if (opts.linkTimeout !== undefined) cfg.linkExtractTimeout = Number(opts.linkTimeout)
+
+      const errors = validateConfig(cfg)
+      if (errors.length) { errors.forEach(e => console.error(e)); process.exit(1) }
+
+      await atomicWrite(CONFIG_FILE, cfg)
+      console.log('✓ Config updated.')
+
+      // Restart to pick up new config, fall back to start if not yet registered.
+      const r = spawnSync('pm2', ['restart', 'arc'], { stdio: 'inherit' })
+      if (r.status !== 0) spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
+    } else {
+      spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
+    }
+  })
 
 // ─── stop ────────────────────────────────────────────────────────────────────
 program.command('stop').description('Stop the server').action(() => {

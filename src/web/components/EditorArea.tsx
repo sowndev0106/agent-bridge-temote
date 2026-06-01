@@ -13,7 +13,7 @@ const SESSIONS_PANEL_ID = 'sessions'
 
 function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
   const project = useProjectsStore(s => s.projects.find(p => p.id === props.params.projectId))
-  if (!project) return null
+  if (!project) return <div className="flex h-full items-center justify-center bg-[var(--color-bg-base)] text-xs text-[var(--color-text-muted)]">Loading sessions…</div>
   return <SessionsPanel project={project} />
 }
 

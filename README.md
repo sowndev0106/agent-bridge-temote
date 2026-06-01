@@ -76,7 +76,9 @@ npx tsc --noEmit
 ```bash
 arc help
 arc install
-arc start
+arc start                                   # start via PM2
+arc start --port 5050                       # update port in config.json, then start
+arc start --port 5050 --host 127.0.0.1 --password mypass --log-level debug
 arc stop
 arc restart
 arc status
@@ -86,6 +88,19 @@ arc config
 arc config set <key> <value>
 arc config reset
 ```
+
+`arc start` accepts inline options that are **persisted to `config.json`** before the server starts. If the PM2 process is already running it is restarted to pick up the new config; otherwise it is started fresh.
+
+| Flag | Config key | Example |
+|------|-----------|---------|
+| `--port <n>` | `port` | `--port 5050` |
+| `--host <h>` | `host` | `--host 127.0.0.1` |
+| `--password <p>` | `password` | `--password mypass` (bcrypt-hashed before save) |
+| `--log-level <l>` | `logLevel` | `--log-level debug` |
+| `--session-ttl <n>` | `sessionTTL` | `--session-ttl 3600` |
+| `--max-sessions <n>` | `maxConcurrentSessions` | `--max-sessions 5` |
+| `--keep-logs <n>` | `keepSessionLogsLines` | `--keep-logs 200` |
+| `--link-timeout <n>` | `linkExtractTimeout` | `--link-timeout 60` |
 
 Configuration values can be inspected with `arc config`. Passwords and session secrets are hidden in CLI output.
 

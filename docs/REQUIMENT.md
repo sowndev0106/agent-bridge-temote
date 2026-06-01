@@ -70,22 +70,38 @@ app-level password.
 ## CLI Commands
 
 ```bash
-remotebridge help                         # show all commands and options
-remotebridge install                      # setup PM2, generate config, prompt for password
-remotebridge start                        # start server (via PM2 if installed)
-remotebridge stop                         # stop server
-remotebridge restart                      # restart server
-remotebridge status                       # show process state, port, and web URL
-remotebridge open                         # open web UI in default browser
-remotebridge logs                         # tail PM2 logs (stdout + stderr)
-remotebridge config                       # display current config (password hidden)
-remotebridge config set <key> <value>     # update a single config value
-remotebridge config reset                 # reset config to factory defaults
+arc help                                  # show all commands and options
+arc install                               # setup PM2, generate config, prompt for password
+arc start                                 # start server via PM2
+arc start [options]                       # persist options to config.json, then start/restart
+arc stop                                  # stop server
+arc restart                               # restart server
+arc status                                # show process state, port, and web URL
+arc open                                  # open web UI in default browser
+arc logs                                  # tail PM2 logs (stdout + stderr)
+arc config                                # display current config (password hidden)
+arc config set <key> <value>              # update a single config value
+arc config reset                          # reset config to factory defaults
 ```
+
+**`arc start` options** (all persist to `config.json` before starting):
+
+| Option | Description |
+|--------|-------------|
+| `--port <n>` | Port to listen on |
+| `--host <h>` | Host to bind to |
+| `--password <p>` | App password (bcrypt-hashed before save) |
+| `--log-level <l>` | `debug` \| `info` \| `warn` \| `error` |
+| `--session-ttl <n>` | Session TTL in seconds |
+| `--max-sessions <n>` | Max concurrent sessions |
+| `--keep-logs <n>` | Lines of session logs to keep per session |
+| `--link-timeout <n>` | Link extract timeout in seconds |
+
+When flags are supplied the CLI validates the merged config, writes it to `config.json`, then calls `pm2 restart arc` (or `pm2 start arc` if not yet registered). Without flags, `arc start` calls `pm2 start arc` unchanged.
 
 **Error UX:** Every command prints a usage guide when called incorrectly.
 Unknown or misspelled options display the closest valid option name, the
-expected type, and a pointer to `remotebridge help`.
+expected type, and a pointer to `arc help`.
 
 ---
 
