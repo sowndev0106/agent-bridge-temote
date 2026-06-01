@@ -125,6 +125,18 @@ export function createWsServer(httpServer: Server, sessionSecret: string, ctx?: 
           prevDetach()
         }
 
+        // Replay historical session logs to the newly attached client terminal
+        const session = ctx.sessionManager.getSession(sessionId)
+        if (session && session.logs && session.logs.length > 0) {
+          console.log('[Server WS] Replaying', session.logs.length, 'historical log lines to client')
+          for (const line of session.logs) {
+            ws.send(JSON.stringify({
+              type: 'terminal.data',
+              payload: { terminalId: sessionId, data: line + '\r\n' }
+            }))
+          }
+        }
+
         console.log('[Server WS] Subscribing client to raw PTY data stream...')
         const detach = ctx.sessionManager.onRawData(sessionId, (data) => {
           if (ws.readyState === WebSocket.OPEN) {
