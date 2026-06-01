@@ -1,9 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 import { DockviewReact, type DockviewReadyEvent, type DockviewApi, type IDockviewPanelProps } from 'dockview'
 import { useEditorStore } from '../stores/editor'
 import { useProjectsStore } from '../stores/projects'
-import MonacoFilePanel from './MonacoFilePanel'
 import SessionsPanel from './SessionsPanel'
+
+// Lazy-load the Monaco panel so monaco-editor lands in its own async chunk,
+// fetched only when the user opens a file (keeps the initial bundle small).
+const MonacoFilePanel = lazy(() => import('./MonacoFilePanel'))
 
 function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
   const project = useProjectsStore(s => s.projects.find(p => p.id === props.params.projectId))
@@ -12,7 +15,11 @@ function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
 }
 
 function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: string; path: string }>) {
-  return <MonacoFilePanel tabId={props.params.tabId} projectId={props.params.projectId} path={props.params.path} />
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--color-bg-base)] text-xs text-[var(--color-text-muted)]">Loading editor…</div>}>
+      <MonacoFilePanel tabId={props.params.tabId} projectId={props.params.projectId} path={props.params.path} />
+    </Suspense>
+  )
 }
 
 const components = { sessions: SessionsPanelHost, file: FilePanelHost }

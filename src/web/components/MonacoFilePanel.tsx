@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
+import './../lib/monaco-setup'
 import { Loader2, Save, Binary, FileCode2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useEditorStore } from '../stores/editor'

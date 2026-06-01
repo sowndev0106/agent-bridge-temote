@@ -1,0 +1,33 @@
+/* dockview theme bound to RemoteBridge tokens */
+.dockview-theme-rb {
+  --dv-background-color: var(--color-bg-base);
+  --dv-group-view-background-color: var(--color-bg-base);
+  --dv-tabs-and-actions-container-background-color: var(--color-bg-surface);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--color-bg-base);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--color-bg-surface);
+  --dv-tab-divider-color: var(--color-border-subtle);
+  --dv-separator-border: var(--color-border-subtle);
+  --dv-activegroup-visiblepanel-tab-color: var(--color-text-primary);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--color-text-muted);
+  --dv-activegroup-hiddenpanel-tab-color: var(--color-text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--color-text-muted);
+  --dv-active-sash-color: var(--color-accent);
+  --dv-icon-hover-background-color: var(--color-bg-hover);
+}
+
+/* react-complex-tree bound to app tokens */
+.rb-filetree {
+  --rct-color-tree-bg: transparent;
+  --rct-item-height: 24px;
+  --rct-color-focustree-item-selected-bg: var(--color-accent-glow);
+  --rct-color-focustree-item-hover-bg: var(--color-bg-hover);
+  --rct-color-focustree-item-selected-text: var(--color-text-primary);
+  --rct-color-tree-focus-outline: transparent;
+  --rct-color-arrow: var(--color-text-muted);
+  --rct-item-margin: 0;
+}
+.rb-filetree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

@@ -1,6 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import 'dockview/dist/styles/dockview.css'
+import 'react-complex-tree/lib/style-modern.css'
+import './styles/dockview-theme.css'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
