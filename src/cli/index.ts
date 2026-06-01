@@ -32,7 +32,8 @@ Config keys: port, host, password, sessionTTL, linkExtractTimeout,
 program
   .command('install')
   .description('Set up PM2 service, generate config, and prompt for password')
-  .action(async () => {
+  .option('--port <n>', 'Port to listen on')
+  .action(async (opts) => {
     // Check PM2
     try { execSync('pm2 --version', { stdio: 'ignore' }) } catch {
       console.error('Error: pm2 not found. Install it first: npm install -g pm2')
@@ -58,6 +59,12 @@ program
 
     await ensureDir(CONFIG_DIR)
     const cfg = await loadConfig()
+
+    if (opts.port !== undefined) {
+      cfg.port = Number(opts.port)
+      const errors = validateConfig(cfg)
+      if (errors.length) { errors.forEach(e => console.error(e)); process.exit(1) }
+    }
 
     // Prompt password
     const rl = createInterface({ input: process.stdin, output: process.stdout })
