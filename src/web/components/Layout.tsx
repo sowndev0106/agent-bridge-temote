@@ -20,11 +20,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <ActivityBar />
         <Group orientation="horizontal" className="min-w-0 flex-1">
-          <Panel defaultSize={20} minSize={12} maxSize={34} className="min-w-0">
+          <Panel defaultSize="20%" minSize="12%" maxSize="34%" className="min-w-0">
             <PrimarySidebar />
           </Panel>
-          <Separator className="w-px bg-[var(--color-border-subtle)] transition-colors hover:bg-[var(--color-accent)] focus-visible:bg-[var(--color-accent)] active:bg-[var(--color-accent)]" />
-          <Panel minSize={40} className="min-w-0">
+          <Separator className="w-1 shrink-0 cursor-col-resize bg-[var(--color-border-subtle)] transition-colors hover:bg-[var(--color-accent)] focus-visible:bg-[var(--color-accent)] active:bg-[var(--color-accent)]" />
+          <Panel minSize="40%" className="min-w-0">
             <div className="flex h-full min-h-0 flex-col">
               <div className="min-h-0 flex-1">
                 {projectId ? <EditorArea projectId={projectId} /> : <div className="h-full">{children}</div>}

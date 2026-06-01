@@ -13,7 +13,7 @@ function Section({ title, defaultOpen = true, actions, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className={`flex min-h-0 flex-col ${open ? 'flex-1' : 'shrink-0'}`}>
       <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
         <button type="button" onClick={() => setOpen(o => !o)} className="flex flex-1 items-center gap-1 hover:text-[var(--color-text-primary)]">
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}{title}
