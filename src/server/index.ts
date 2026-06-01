@@ -35,7 +35,7 @@ export async function createServer() {
   }
 
   if (config.host !== '127.0.0.1') {
-    console.log('\x1b[33m⚠  RemoteBridge is bound to 0.0.0.0 — accessible from the network. Ensure firewall is configured.\x1b[0m')
+    console.log('\x1b[33m⚠  Agent Remote Control is bound to 0.0.0.0 — accessible from the network. Ensure firewall is configured.\x1b[0m')
   }
 
   const logger = createLogger(config.logLevel)
@@ -132,5 +132,5 @@ const isMain = process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWit
 if (isMain) {
   const { fastify, config } = await createServer()
   await fastify.listen({ port: config.port, host: config.host })
-  console.log(`RemoteBridge running on http://localhost:${config.port}`)
+  console.log(`Agent Remote Control running on http://localhost:${config.port}`)
 }

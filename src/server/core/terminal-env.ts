@@ -1,7 +1,7 @@
 /**
  * Build the environment for a PTY-spawned shell or agent.
  *
- * RemoteBridge may be launched from a context that disables color (e.g. an IDE/VSCode
+ * Agent Remote Control may be launched from a context that disables color (e.g. an IDE/VSCode
  * task sets NO_COLOR=1, or TERM=dumb). That env is inherited via process.env and, if
  * passed through unchanged, makes TUIs like `claude` emit no color at all — even though
  * the xterm.js frontend renders full truecolor. So we:

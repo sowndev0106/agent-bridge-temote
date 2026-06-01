@@ -6,20 +6,20 @@ import { execSync, spawnSync } from 'child_process'
 import { createInterface } from 'readline'
 import openBrowser from 'open'
 
-const program = new Command('remotebridge')
+const program = new Command('arc')
 
 program
-  .name('remotebridge')
+  .name('arc')
   .description('Launch AI coding agents and surface their remote links in a browser UI')
   .version('0.1.0')
 
 // ─── help ────────────────────────────────────────────────────────────────────
 program.addHelpText('after', `
 Examples:
-  remotebridge install          Set up PM2 service and initial config
-  remotebridge start            Start the server
-  remotebridge status           Show server status and URL
-  remotebridge config set port 3000
+  arc install          Set up PM2 service and initial config
+  arc start            Start the server
+  arc status           Show server status and URL
+  arc config set port 3000
 
 Config keys: port, host, password, sessionTTL, linkExtractTimeout,
              maxConcurrentSessions, keepSessionLogsLines, logLevel, globalEnv
@@ -43,13 +43,13 @@ program
     try {
       await import('node-pty')
     } catch (err) {
-      console.error('Error: node-pty failed to load — RemoteBridge cannot spawn agents.')
+      console.error('Error: node-pty failed to load — Agent Remote Control cannot spawn agents.')
       console.error(`  ${(err as Error).message}`)
       console.error('  Install a build toolchain and reinstall:')
       console.error('    Linux:   sudo apt-get install -y build-essential python3')
       console.error('    macOS:   xcode-select --install')
       console.error('    Windows: npm install -g windows-build-tools  (or install VS Build Tools)')
-      console.error("  Then: npm install -g remotebridge. Run 'remotebridge help' for usage.")
+      console.error("  Then: npm install -g agent-remote-control. Run 'arc help' for usage.")
       process.exit(1)
     }
 
@@ -73,32 +73,32 @@ program
     // SIGTERM->wait->SIGKILL window, so without this PM2 would SIGKILL the daemon mid-drain
     // and orphan the agents. 6s gives killAll() room to finish (FR3 / ADR-0002).
     const scriptPath = new URL('../server/index.js', import.meta.url).pathname
-    spawnSync('pm2', ['start', scriptPath, '--name', 'remotebridge', '--interpreter', 'node', '--kill-timeout', '6000'], { stdio: 'inherit' })
+    spawnSync('pm2', ['start', scriptPath, '--name', 'arc', '--interpreter', 'node', '--kill-timeout', '6000'], { stdio: 'inherit' })
     spawnSync('pm2', ['save'], { stdio: 'inherit' })
 
-    console.log(`\n✓ RemoteBridge installed. Run: remotebridge start`)
+    console.log(`\n✓ Agent Remote Control installed. Run: arc start`)
     console.log(`  Web UI: http://localhost:${cfg.port}`)
     console.log('\n\x1b[33m⚠  Bound to 0.0.0.0 — accessible from network. Ensure firewall is configured.\x1b[0m')
   })
 
 // ─── start ───────────────────────────────────────────────────────────────────
 program.command('start').description('Start the server via PM2').action(() => {
-  spawnSync('pm2', ['start', 'remotebridge'], { stdio: 'inherit' })
+  spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
 })
 
 // ─── stop ────────────────────────────────────────────────────────────────────
 program.command('stop').description('Stop the server').action(() => {
-  spawnSync('pm2', ['stop', 'remotebridge'], { stdio: 'inherit' })
+  spawnSync('pm2', ['stop', 'arc'], { stdio: 'inherit' })
 })
 
 // ─── restart ─────────────────────────────────────────────────────────────────
 program.command('restart').description('Restart the server').action(() => {
-  spawnSync('pm2', ['restart', 'remotebridge'], { stdio: 'inherit' })
+  spawnSync('pm2', ['restart', 'arc'], { stdio: 'inherit' })
 })
 
 // ─── status ──────────────────────────────────────────────────────────────────
 program.command('status').description('Show process state and URL').action(async () => {
-  spawnSync('pm2', ['show', 'remotebridge'], { stdio: 'inherit' })
+  spawnSync('pm2', ['show', 'arc'], { stdio: 'inherit' })
   const cfg = await loadConfig()
   console.log(`\nWeb UI: http://${cfg.host === '0.0.0.0' ? 'localhost' : cfg.host}:${cfg.port}`)
 })
@@ -113,7 +113,7 @@ program.command('open').description('Open web UI in default browser').action(asy
 
 // ─── logs ────────────────────────────────────────────────────────────────────
 program.command('logs').description('Tail PM2 logs').action(() => {
-  spawnSync('pm2', ['logs', 'remotebridge'], { stdio: 'inherit' })
+  spawnSync('pm2', ['logs', 'arc'], { stdio: 'inherit' })
 })
 
 // ─── config ──────────────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ configCmd
       const closest = VALID_KEYS.find(k => k.startsWith(key[0])) ?? VALID_KEYS[0]
       console.error(`Unknown config key: "${key}". Did you mean "${closest}"?`)
       console.error(`Valid keys: ${VALID_KEYS.join(', ')}`)
-      console.error(`Run 'remotebridge help' for usage.`)
+      console.error(`Run 'arc help' for usage.`)
       process.exit(1)
     }
 
@@ -146,7 +146,7 @@ configCmd
     if (typeof defaultVal === 'number') {
       parsed = Number(value)
       if (isNaN(parsed as number)) {
-        console.error(`"${key}" must be a number. Got: "${value}". Run 'remotebridge help' for usage.`)
+        console.error(`"${key}" must be a number. Got: "${value}". Run 'arc help' for usage.`)
         process.exit(1)
       }
     }

@@ -60,7 +60,7 @@ export class CodexAgentAdapter implements AgentAdapter {
 
     // Step 1: Initialize
     await client.sendRequest('initialize', {
-      clientInfo: { name: 'remotebridge', version: '1.0.0' }
+      clientInfo: { name: 'arc', version: '1.0.0' }
     })
 
     // Step 2: thread/start or thread/resume

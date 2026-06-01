@@ -22,7 +22,7 @@ describe('config', () => {
     const errors = validateConfig({ port: 99999, host: '127.0.0.1' })
     expect(errors.length).toBeGreaterThan(0)
     expect(errors[0]).toContain('"port"')
-    expect(errors[0]).toContain("remotebridge help")
+    expect(errors[0]).toContain("arc help")
   })
 
   it('validateConfig catches invalid logLevel', () => {

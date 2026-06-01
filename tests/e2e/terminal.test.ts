@@ -69,8 +69,8 @@ beforeAll(async () => {
     agents: { claude: { command: process.execPath, args: [FAKE_AGENT] } },
     globalEnv: {}, logLevel: 'error'
   }
-  await mkdir(join(homedir(), '.remotebridge'), { recursive: true })
-  await writeFile(join(homedir(), '.remotebridge', 'config.json'), JSON.stringify(config))
+  await mkdir(join(homedir(), '.agent-remote-control'), { recursive: true })
+  await writeFile(join(homedir(), '.agent-remote-control', 'config.json'), JSON.stringify(config))
 
   server = await createServer()
   await server.fastify.listen({ port: 0, host: '127.0.0.1' })

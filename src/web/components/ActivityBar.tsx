@@ -171,7 +171,7 @@ export default function ActivityBar() {
           className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]">
           <Settings size={18} />
         </Link>
-        <a href="https://github.com/sowndev/remotebridge" target="_blank" rel="noopener noreferrer" title="Help"
+        <a href="https://github.com/sowndev0106/agent-bridge-temote" target="_blank" rel="noopener noreferrer" title="Help"
           onMouseEnter={e => show('Help', e)} onMouseLeave={() => setTip(null)}
           className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]">
           <HelpCircle size={18} />

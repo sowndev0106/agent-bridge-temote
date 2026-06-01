@@ -3,7 +3,7 @@
 // It does NOT need to check for a TTY (the real claude does, which is why the manager
 // spawns through node-pty). It just emits a Claude-style remote-link line on stdout —
 // matching the verified pattern https://claude.ai/code/session_<ULID> — then idles so
-// the session stays in 'running' until RemoteBridge stops it. Exits cleanly on SIGTERM.
+// the session stays in 'running' until Agent Remote Control stops it. Exits cleanly on SIGTERM.
 //
 // An optional first arg "trust" makes it first print a trust prompt, exercising the
 // auto-accept path in SessionManager.launch().
@@ -22,7 +22,7 @@ setTimeout(() => {
   )
 }, 150)
 
-// Keep the process alive until RemoteBridge signals it.
+// Keep the process alive until Agent Remote Control signals it.
 const keepAlive = setInterval(() => {}, 1 << 30)
 const shutdown = () => { clearInterval(keepAlive); process.exit(0) }
 process.on('SIGTERM', shutdown)

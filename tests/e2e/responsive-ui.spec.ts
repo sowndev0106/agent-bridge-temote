@@ -172,8 +172,8 @@ test('VS Code shell: title bar, activity bar and exposure warning', async ({ pag
   await expectNoHorizontalOverflow(page)
 
   // Title bar brand + exposure warning (moved out of the old Header).
-  await expect(page.getByRole('banner').getByText('RemoteBridge')).toBeVisible()
-  await expect(page.getByText('RemoteBridge is exposed on 0.0.0.0')).toBeVisible()
+  await expect(page.getByRole('banner').getByText('Agent Remote Control')).toBeVisible()
+  await expect(page.getByText('Agent Remote Control is exposed on 0.0.0.0')).toBeVisible()
 
   // Activity bar rail with one avatar link per project.
   const activityBar = page.getByRole('complementary', { name: 'Projects' })

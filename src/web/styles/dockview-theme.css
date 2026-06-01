@@ -1,4 +1,4 @@
-/* dockview theme bound to RemoteBridge tokens */
+/* dockview theme bound to Agent Remote Control tokens */
 .dockview-theme-rb {
   --dv-background-color: var(--color-bg-base);
   --dv-group-view-background-color: var(--color-bg-base);

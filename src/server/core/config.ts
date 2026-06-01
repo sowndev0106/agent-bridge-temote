@@ -25,29 +25,29 @@ export function validateConfig(cfg: Partial<AppConfig>): string[] {
 
   if (cfg.port !== undefined) {
     if (typeof cfg.port !== 'number' || !Number.isInteger(cfg.port) || cfg.port < 1 || cfg.port > 65535) {
-      errors.push(`"port" must be an integer between 1-65535 (got ${cfg.port}). Run 'remotebridge help' for usage.`)
+      errors.push(`"port" must be an integer between 1-65535 (got ${cfg.port}). Run 'arc help' for usage.`)
     }
   }
 
   if (cfg.logLevel !== undefined && !['debug', 'info', 'warn', 'error'].includes(cfg.logLevel)) {
-    errors.push(`"logLevel" must be one of: debug, info, warn, error (got "${cfg.logLevel}"). Run 'remotebridge help' for usage.`)
+    errors.push(`"logLevel" must be one of: debug, info, warn, error (got "${cfg.logLevel}"). Run 'arc help' for usage.`)
   }
 
   if (cfg.sessionTTL !== undefined && (typeof cfg.sessionTTL !== 'number' || cfg.sessionTTL < 60)) {
-    errors.push(`"sessionTTL" must be a number ≥ 60 seconds. Run 'remotebridge help' for usage.`)
+    errors.push(`"sessionTTL" must be a number ≥ 60 seconds. Run 'arc help' for usage.`)
   }
 
   const host = cfg.host ?? CONFIG_DEFAULTS.host
   const password = cfg.password ?? CONFIG_DEFAULTS.password
   if (host !== '127.0.0.1' && !password) {
-    errors.push(`"password" is required when "host" is not 127.0.0.1. Run: remotebridge config set password <yourpassword>`)
+    errors.push(`"password" is required when "host" is not 127.0.0.1. Run: arc config set password <yourpassword>`)
   }
 
   // An empty sessionSecret would sign session tokens with an empty HMAC key — generated
-  // by `remotebridge install`. Refuse to run without it rather than issue weak cookies.
+  // by `arc install`. Refuse to run without it rather than issue weak cookies.
   const sessionSecret = cfg.sessionSecret ?? CONFIG_DEFAULTS.sessionSecret
   if (!sessionSecret) {
-    errors.push(`"sessionSecret" is not set — run 'remotebridge install' to generate one. Run 'remotebridge help' for usage.`)
+    errors.push(`"sessionSecret" is not set — run 'arc install' to generate one. Run 'arc help' for usage.`)
   }
 
   return errors
@@ -65,7 +65,7 @@ export function mergeConfig(base: AppConfig, override: Partial<AppConfig>): AppC
 /**
  * Read config fields from environment variables (RB_* prefix).
  * These take highest priority — useful in dev mode or CI without touching
- * ~/.remotebridge/config.json.
+ * ~/.agent-remote-control/config.json.
  *
  * Supported vars:
  *   RB_PORT               number
@@ -104,7 +104,7 @@ export async function loadConfig(): Promise<AppConfig> {
   const saved = await readJson<Partial<AppConfig>>(CONFIG_FILE)
   const fromFile = saved ? mergeConfig(CONFIG_DEFAULTS, saved) : { ...CONFIG_DEFAULTS }
   // Env vars take highest priority so dev mode / CI can override without
-  // touching ~/.remotebridge/config.json.
+  // touching ~/.agent-remote-control/config.json.
   return mergeConfig(fromFile, await loadEnvConfig())
 }
 

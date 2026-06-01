@@ -90,7 +90,7 @@ export default function DeleteProjectModal() {
         </div>
         <div className="space-y-3 px-4 py-4 text-sm text-[var(--color-text-secondary)]">
           <p>
-            Delete <span className="font-medium text-[var(--color-text-primary)]">{project.name}</span> from RemoteBridge.
+            Delete <span className="font-medium text-[var(--color-text-primary)]">{project.name}</span> from Agent Remote Control.
           </p>
           <p className="rb-mono break-all rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-overlay)] px-3 py-2 text-[11px] text-[var(--color-text-code)]">
             {project.path}

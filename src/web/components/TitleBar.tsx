@@ -21,7 +21,7 @@ export default function TitleBar() {
       {publicHost && !dismissed && (
         <div className="flex min-h-8 items-center gap-2 border-b border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)]">
           <span className="font-semibold text-[var(--color-warning)]">Warning</span>
-          <span className="min-w-0 flex-1 truncate">RemoteBridge is exposed on {config?.host}. Ensure your firewall and password are configured.</span>
+          <span className="min-w-0 flex-1 truncate">Agent Remote Control is exposed on {config?.host}. Ensure your firewall and password are configured.</span>
           <button type="button" onClick={() => { localStorage.setItem(WARNING_DISMISSED_KEY, '1'); setDismissed(true) }} aria-label="Dismiss warning" className="rb-icon-button h-6 w-6">×</button>
         </div>
       )}
@@ -36,7 +36,7 @@ export default function TitleBar() {
             <Menu size={16} />
           </button>
           <span className="flex h-5 w-5 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-dim)] font-mono text-[10px] font-semibold text-[var(--color-accent)]">RB</span>
-          <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">RemoteBridge</span>
+          <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">Agent Remote Control</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">

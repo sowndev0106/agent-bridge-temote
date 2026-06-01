@@ -7,7 +7,7 @@ import { tmpdir } from 'os'
 //
 // HOME is redirected to a throwaway sandbox so modules that resolve the config dir
 // from os.homedir() at import time (config.ts, projects.ts, sessions.ts) read/write
-// under /tmp instead of the developer's real ~/.remotebridge. Set via test.env so it
+// under /tmp instead of the developer's real ~/.agent-remote-control. Set via test.env so it
 // applies BEFORE test modules (and their top-level homedir() consts) load.
 const SANDBOX_HOME = join(tmpdir(), 'rb-vitest-home')
 

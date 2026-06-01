@@ -24,7 +24,7 @@ export default function Overview() {
     <>
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-10 py-8">
         <div className="flex flex-col items-center gap-3 pt-6">
-          <h1 className="rb-mono text-4xl font-bold tracking-tight text-[var(--color-text-secondary)] sm:text-5xl">RemoteBridge</h1>
+          <h1 className="rb-mono text-4xl font-bold tracking-tight text-[var(--color-text-secondary)] sm:text-5xl">Agent Remote Control</h1>
           <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
             <span className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-[var(--color-running)]' : 'bg-[var(--color-stopped)]'}`} />
             {config?.host ?? '127.0.0.1'}:{config?.port ?? ''}

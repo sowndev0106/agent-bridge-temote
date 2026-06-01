@@ -109,7 +109,7 @@ export default function PrimarySidebar() {
   // Load from localStorage when project changes
   useEffect(() => {
     if (!project) return
-    const key = `remotebridge:sidebar:${project.id}`
+    const key = `arc:sidebar:${project.id}`
     try {
       const saved = localStorage.getItem(key)
       if (saved) {
@@ -137,7 +137,7 @@ export default function PrimarySidebar() {
 
   const saveState = (newOrder: string[], newOpenStates: Record<string, boolean>) => {
     if (!project) return
-    const key = `remotebridge:sidebar:${project.id}`
+    const key = `arc:sidebar:${project.id}`
     localStorage.setItem(key, JSON.stringify({ order: newOrder, openStates: newOpenStates }))
   }
 

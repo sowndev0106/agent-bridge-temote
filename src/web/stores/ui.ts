@@ -6,7 +6,7 @@ export interface Toast {
   type: 'error' | 'info'
 }
 
-const PROJECT_ORDER_KEY = 'remotebridge.projectOrder'
+const PROJECT_ORDER_KEY = 'arc.projectOrder'
 
 function readProjectOrder(): string[] {
   if (typeof window === 'undefined') return []

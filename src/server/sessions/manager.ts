@@ -86,7 +86,7 @@ export class SessionManager {
       if (!('title' in session)) (session as Session).title = null
       if (!('branch' in session)) (session as Session).branch = null
       if (!('providerSessionId' in session)) (session as Session).providerSessionId = null
-      // PTY handles do not survive a RemoteBridge restart, so we can no longer
+      // PTY handles do not survive a Agent Remote Control restart, so we can no longer
       // control a previously running agent. Always mark prior launching/running
       // sessions as stopped. Do NOT kill by bare PID — it may have been reused by
       // an unrelated process (would violate H1/H10). See ADR-0002.

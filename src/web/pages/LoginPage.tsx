@@ -27,7 +27,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 shadow-[var(--shadow-modal)] sm:p-8">
         <div className="mb-6 flex items-center justify-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-dim)] font-mono text-xs font-semibold text-[var(--color-accent)]">RB</span>
-          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">RemoteBridge</h1>
+          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Agent Remote Control</h1>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <input

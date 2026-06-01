@@ -4,9 +4,9 @@ This file provides guidance to coding agents (Claude Code, Codex, Cursor, Gemini
 
 ## Scope
 
-`agent-bridge-temote` (RemoteBridge) is a Node.js CLI app installed globally via `npm install -g remotebridge`. It lets a developer launch and manage local AI coding agents (Claude Code, Gemini CLI, OpenCode, Codex) from a browser UI. For each agent session the app spawns the agent as a PTY process, captures the remote URL it prints to stdout, and surfaces it in the web interface via WebSocket.
+`agent-bridge-temote` (Agent Remote Control) is a Node.js CLI app installed globally via `npm install -g agent-remote-control`. It lets a developer launch and manage local AI coding agents (Claude Code, Gemini CLI, OpenCode, Codex) from a browser UI. For each agent session the app spawns the agent as a PTY process, captures the remote URL it prints to stdout, and surfaces it in the web interface via WebSocket.
 
-Implementation has begun following the Phase 1 plan in `docs/superpowers/plans/2026-05-29-remotebridge-phase1.md`.
+Implementation has begun following the Phase 1 plan in `docs/superpowers/plans/2026-05-29-arc-phase1.md`.
 
 ---
 
@@ -24,8 +24,8 @@ Source of truth, in priority order. When documents conflict, the higher entry wi
 |---|---|---|
 | [docs/REQUIMENT.md](docs/REQUIMENT.md) | All functional and non-functional requirements, CLI surface, API routes, config reference | Before any task |
 | [docs/DESIGN.md](docs/DESIGN.md) | Frontend component tree, page layouts, design tokens, state management, component specs | Before any UI task |
-| [docs/superpowers/plans/2026-05-29-remotebridge-phase1.md](docs/superpowers/plans/2026-05-29-remotebridge-phase1.md) | Full Phase 1 implementation plan with code for every file | During implementation |
-| [docs/superpowers/specs/2026-05-29-remotebridge-design.md](docs/superpowers/specs/2026-05-29-remotebridge-design.md) | Architecture decision summary and key constraints | When making architectural choices |
+| [docs/superpowers/plans/2026-05-29-arc-phase1.md](docs/superpowers/plans/2026-05-29-arc-phase1.md) | Full Phase 1 implementation plan with code for every file | During implementation |
+| [docs/superpowers/specs/2026-05-29-arc-design.md](docs/superpowers/specs/2026-05-29-arc-design.md) | Architecture decision summary and key constraints | When making architectural choices |
 | [CONTEXT.md](CONTEXT.md) | Verified domain terms, ground truth for link patterns | When touching session/link logic |
 
 The filename `docs/REQUIMENT.md` matches this project's convention — do not rename it.
@@ -67,8 +67,8 @@ npx tsc --noEmit
 
 **CLI (before build):**
 ```bash
-npx tsx bin/remotebridge.ts help
-npx tsx bin/remotebridge.ts config
+npx tsx bin/arc.ts help
+npx tsx bin/arc.ts config
 ```
 
 ---
@@ -83,13 +83,13 @@ npx tsx bin/remotebridge.ts config
 | Frontend | React 18 + Vite + TailwindCSS v3 |
 | State management | Zustand 4 |
 | Realtime | WebSocket (`ws` library) |
-| Persistence | JSON files at `~/.remotebridge/` |
+| Persistence | JSON files at `~/.agent-remote-control/` |
 | Auth | bcryptjs (password hashing) + HMAC-SHA256 session tokens |
 | CLI | commander 12 |
 | Logger | pino |
 | Testing | vitest |
 | Build | tsup (server) + vite (web) |
-| Process management | PM2 (manages RemoteBridge itself, not agent sessions) |
+| Process management | PM2 (manages Agent Remote Control itself, not agent sessions) |
 
 ---
 
@@ -105,7 +105,7 @@ agent-bridge-temote/
 ├── tailwind.config.ts
 ├── postcss.config.ts
 ├── bin/
-│   └── remotebridge.ts        # thin CLI shim (shebang: #!/usr/bin/env node)
+│   └── arc.ts        # thin CLI shim (shebang: #!/usr/bin/env node)
 ├── src/
 │   ├── types.ts               # shared: Project, Session, AgentDefinition, AppConfig, WsEvent
 │   ├── cli/
@@ -150,7 +150,7 @@ agent-bridge-temote/
 │   ├── sessions/              # link-extractor, manager tests
 │   └── routes/                # auth, projects route tests (Fastify inject)
 └── dist/                      # tsup + vite build output
-    ├── bin/remotebridge.js
+    ├── bin/arc.js
     ├── server/
     └── web/
 ```
@@ -175,7 +175,7 @@ These invariants are derived directly from [docs/REQUIMENT.md](docs/REQUIMENT.md
 | H10 | App may only terminate agent processes it spawned (tracked by PID in `sessions.json`). node-pty's `child.kill()` handles SIGTERM/SIGKILL. Never signal unrelated OS processes. | FR5 | Could kill unrelated user work. |
 | H11 | Config dir permissions (Unix): directory `0700`, files `0600`, written atomically via temp + `fs.rename`. Windows: attempt `icacls` owner-only ACL; log a warning if it fails, do not abort startup. | NFR3 | Protects config, secrets, session data from other OS users. |
 | H12 | Login endpoint is **rate-limited**: max 10 attempts / minute per IP. | NFR3 | Prevents brute-force. |
-| H13 | RemoteBridge **never stores or extracts** credentials or auth tokens belonging to AI services. The user manages their own AI service auth. | Design decision | Scope boundary — RemoteBridge is a launcher, not an auth proxy. |
+| H13 | Agent Remote Control **never stores or extracts** credentials or auth tokens belonging to AI services. The user manages their own AI service auth. | Design decision | Scope boundary — Agent Remote Control is a launcher, not an auth proxy. |
 | H14 | `linkPattern` regex match runs against **each stdout line individually** via `extractLink()`. Never execute or eval agent output. | FR4 | Agent output is untrusted. |
 | H15 | A Project **cannot be deleted** while any of its sessions is `launching` or `running` — `DELETE /api/projects/:id` returns `409 project_in_use`. Stop the sessions first. | FR1, FR5 | A live session must never reference a vanished Project (Restart would 404). Symmetric with `removeSession()`'s running-guard. |
 
@@ -227,10 +227,10 @@ A `password` arriving over the API is plaintext; the route bcrypt-hashes it befo
 The threat model is an unauthenticated network party, not the logged-in user. Session/CSRF auth and H8 keep *outsiders* out; they do not constrain the user. Setting an arbitrary `agents.*.command` via `config.json` or `PUT /api/config` is an **intended** power-user capability — H8 only forbids taking the command from the raw `/api/sessions/launch` payload.
 
 **Graceful shutdown kills every spawned agent (ADR-0002):**
-On SIGINT/SIGTERM the bootstrap `await`s `SessionManager.killAll()` before `fastify.close()`. `killAll()` SIGTERMs every tracked PTY, awaits exits with a ~1s bound, then SIGKILLs stragglers — only processes we spawned (PTY handles in `this.processes`), never a bare PID (H10). `remotebridge install` registers PM2 with `--kill-timeout 6000` so this drain finishes before PM2 force-kills the daemon.
+On SIGINT/SIGTERM the bootstrap `await`s `SessionManager.killAll()` before `fastify.close()`. `killAll()` SIGTERMs every tracked PTY, awaits exits with a ~1s bound, then SIGKILLs stragglers — only processes we spawned (PTY handles in `this.processes`), never a bare PID (H10). `arc install` registers PM2 with `--kill-timeout 6000` so this drain finishes before PM2 force-kills the daemon.
 
-**`remotebridge install` smoke-tests node-pty (ADR-0001):**
-node-pty is a native module with no JS fallback. `install` does `await import('node-pty')` and, on failure, prints a per-OS build-toolchain remediation message (not a node-gyp wall-of-text) ending in the `remotebridge help` pointer, then exits non-zero.
+**`arc install` smoke-tests node-pty (ADR-0001):**
+node-pty is a native module with no JS fallback. `install` does `await import('node-pty')` and, on failure, prints a per-OS build-toolchain remediation message (not a node-gyp wall-of-text) ending in the `arc help` pointer, then exits non-zero.
 
 **resolveCommand on Windows:**
 `node-pty` does not resolve `.cmd` shims for npm global-installed executables on Windows. `resolveCommand(command)` appends `.cmd` if the platform is win32 and the command has no extension and no path separators.
@@ -252,8 +252,8 @@ All API responses use:
 ```
 Error codes are short camelCase strings: `auth_required`, `csrf_missing`, `rate_limited`, `invalid_path`, `not_found`, `bad_request`, `project_in_use`, `session_active`, `max_sessions_reached`, `invalid_config`.
 
-**Error messages always include `remotebridge help` pointer:**
-Validation errors from `validateConfig()` and CLI bad-arg handlers must end with `Run 'remotebridge help' for usage.` — no dead-end errors.
+**Error messages always include `arc help` pointer:**
+Validation errors from `validateConfig()` and CLI bad-arg handlers must end with `Run 'arc help' for usage.` — no dead-end errors.
 
 **WebSocket auth at upgrade time:**
 The WS upgrade handler reads the `rb_session` cookie from the HTTP upgrade request and verifies it before accepting the connection. No second auth exchange over the WebSocket protocol.
@@ -270,13 +270,13 @@ Do not add new event types without updating both `docs/REQUIMENT.md` and `src/we
 ## Persistence Layout
 
 ```
-~/.remotebridge/         (dir mode 0700)
+~/.agent-remote-control/         (dir mode 0700)
 ├── config.json          (mode 0600) — AppConfig
 ├── projects.json        (mode 0600) — Project[]
 └── sessions.json        (mode 0600) — Session[] (logs always [] on disk)
 ```
 
-Windows: `%APPDATA%\remotebridge\`
+Windows: `%APPDATA%\arc\`
 
 All writes use `atomicWrite()` (temp file + `fs.rename`).
 
@@ -330,7 +330,7 @@ These types are shared between server and web. Import from `../../types.js` (ser
 | Session | `tests/sessions/` | vitest | Manager uses real tmpdir; no actual PTY spawn |
 | E2E | `tests/e2e/` | vitest + ws + node-pty | Real server on an ephemeral port; real PTY via `tests/fixtures/fake-agent.mjs`; full login→launch→link→stop/restart/delete flow. See [docs/E2E-TEST-PLAN.md](docs/E2E-TEST-PLAN.md) |
 
-Tests run in the `forks` pool with `$HOME` redirected to a sandbox (`tests/setup.ts`) so they never touch the real `~/.remotebridge` (modules resolve the config dir from `os.homedir()` at import time).
+Tests run in the `forks` pool with `$HOME` redirected to a sandbox (`tests/setup.ts`) so they never touch the real `~/.agent-remote-control` (modules resolve the config dir from `os.homedir()` at import time).
 
 **Run a single test file:**
 ```bash
@@ -420,7 +420,7 @@ Invoke **`superpowers:finishing-a-development-branch`** to choose integration pa
 
 ## Key Conventions
 
-**Config defaults:** Every config key must have a default in `CONFIG_DEFAULTS` (`src/server/core/config.ts`). A user running `remotebridge start` with zero config (other than password, which blocks start when host=0.0.0.0) must get a working server.
+**Config defaults:** Every config key must have a default in `CONFIG_DEFAULTS` (`src/server/core/config.ts`). A user running `arc start` with zero config (other than password, which blocks start when host=0.0.0.0) must get a working server.
 
 **Cross-platform process spawning:** Use `node-pty` — not `child_process.spawn`, not `execa`, not `cross-spawn`. On Windows, call `resolveCommand(command)` from `agent-catalog.ts` to append `.cmd` before passing to node-pty.
 
@@ -444,7 +444,7 @@ Invoke **`superpowers:finishing-a-development-branch`** to choose integration pa
 |---|---|
 | [docs/REQUIMENT.md](docs/REQUIMENT.md) | Before any task — FR/NFR, CLI surface, API, config |
 | [docs/DESIGN.md](docs/DESIGN.md) | Before any UI task — component specs, design tokens, ASCII mockups |
-| [docs/superpowers/plans/2026-05-29-remotebridge-phase1.md](docs/superpowers/plans/2026-05-29-remotebridge-phase1.md) | During implementation — full code for every Sprint A–F task |
+| [docs/superpowers/plans/2026-05-29-arc-phase1.md](docs/superpowers/plans/2026-05-29-arc-phase1.md) | During implementation — full code for every Sprint A–F task |
 | [CONTEXT.md](CONTEXT.md) | When touching link extraction or session logic — verified domain terms |
 
 > Docs lag code; trust source when there's a conflict.

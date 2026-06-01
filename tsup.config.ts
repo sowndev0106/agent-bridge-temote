@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    'bin/remotebridge': 'bin/remotebridge.ts',
+    'bin/arc': 'bin/arc.ts',
     'server/index': 'src/server/index.ts'
   },
   format: ['esm'],
