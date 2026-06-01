@@ -145,15 +145,12 @@ export default function ActivityBar() {
             <NavLink key={p.id} to={`/project/${p.id}`} title={`${p.name}\n${p.path}`}
               onMouseEnter={e => show(p.name, e, p.path)} onMouseLeave={() => setTip(null)}
               className={({ isActive }) =>
-                `relative flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] text-xs font-semibold text-white transition-all ${isActive ? 'ring-2 ring-[var(--color-accent)]' : 'opacity-80 hover:opacity-100'}`}
+                `relative flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] text-xs font-semibold text-white transition-all ring-offset-[var(--color-bg-surface)] ${isActive ? 'ring-2 ring-[var(--color-accent)] ring-offset-2' : 'opacity-80 hover:opacity-100'}`}
               style={{ backgroundColor: projectColor(p.id) }}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute -left-2 h-5 w-0.5 rounded-r bg-[var(--color-accent)]" />}
-                  {initials(p.name)}
-                  {running(p.id) && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg-surface)] bg-[var(--color-running)]" style={{ animation: 'rb-pulse 3s ease-in-out infinite' }} />}
-                </>
-              )}
+              <>
+                {initials(p.name)}
+                {running(p.id) && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg-surface)] bg-[var(--color-running)]" style={{ animation: 'rb-pulse 3s ease-in-out infinite' }} />}
+              </>
             </NavLink>
           )
         ))}

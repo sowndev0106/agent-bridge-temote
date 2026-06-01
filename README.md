@@ -75,12 +75,13 @@ npx tsc --noEmit
 
 ```bash
 arc help
-arc install
+arc install                                 # set up PM2 service, prompt for password, start server
 arc start                                   # start via PM2
 arc start --port 5050                       # update port in config.json, then start
 arc start --port 5050 --host 127.0.0.1 --password mypass --log-level debug
 arc stop
 arc restart
+arc uninstall                               # remove PM2 service (pm2 delete arc)
 arc status
 arc open
 arc logs

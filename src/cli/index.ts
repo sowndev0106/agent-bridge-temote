@@ -5,14 +5,18 @@ import { atomicWrite, ensureDir } from '../server/core/persistence.js'
 import { hashPassword, generateSecret } from '../server/core/auth.js'
 import { execSync, spawnSync } from 'child_process'
 import { createInterface } from 'readline'
+import { createRequire } from 'module'
 import openBrowser from 'open'
+
+const _require = createRequire(import.meta.url)
+const { version } = _require('../../package.json') as { version: string }
 
 const program = new Command('arc')
 
 program
   .name('arc')
   .description('Launch AI coding agents and surface their remote links in a browser UI')
-  .version('0.1.0')
+  .version(version)
 
 // ─── help ────────────────────────────────────────────────────────────────────
 program.addHelpText('after', `
@@ -21,6 +25,9 @@ Examples:
   arc start                        Start the server
   arc start --port 5050            Update port in config.json, then start
   arc start --port 5050 --host 127.0.0.1 --password mypass
+  arc stop                         Stop the server
+  arc restart                      Restart the server
+  arc uninstall                    Remove PM2 service
   arc status                       Show server status and URL
   arc config set port 3000
 
@@ -78,16 +85,22 @@ program
     cfg.sessionSecret = generateSecret()
     await atomicWrite(CONFIG_FILE, cfg)
 
-    // Register with PM2.
+    // Register with PM2. Delete any existing 'arc' process first so that
+    // running `arc install` twice doesn't create duplicate PM2 entries.
     // --kill-timeout 6000: PM2's default (~1.6s) is shorter than SessionManager.killAll()'s
     // SIGTERM->wait->SIGKILL window, so without this PM2 would SIGKILL the daemon mid-drain
     // and orphan the agents. 6s gives killAll() room to finish (FR3 / ADR-0002).
     const scriptPath = new URL('../server/index.js', import.meta.url).pathname
+    const existing = spawnSync('pm2', ['describe', 'arc'], { stdio: 'pipe' })
+    if (existing.status === 0) {
+      spawnSync('pm2', ['delete', 'arc'], { stdio: 'inherit' })
+    }
     spawnSync('pm2', ['start', scriptPath, '--name', 'arc', '--interpreter', 'node', '--kill-timeout', '6000'], { stdio: 'inherit' })
     spawnSync('pm2', ['save'], { stdio: 'inherit' })
 
-    console.log(`\n✓ Agent Remote Control installed. Run: arc start`)
+    console.log(`\n✓ Agent Remote Control installed and started.`)
     console.log(`  Web UI: http://localhost:${cfg.port}`)
+    console.log('  Run: arc status  |  arc open  |  arc logs')
     console.log('\n\x1b[33m⚠  Bound to 0.0.0.0 — accessible from network. Ensure firewall is configured.\x1b[0m')
   })
 
@@ -127,11 +140,18 @@ program
       await atomicWrite(CONFIG_FILE, cfg)
       console.log('✓ Config updated.')
 
-      // Restart to pick up new config, fall back to start if not yet registered.
+      // Restart to pick up new config. If arc isn't registered (e.g. after uninstall), tell user to reinstall.
       const r = spawnSync('pm2', ['restart', 'arc'], { stdio: 'inherit' })
-      if (r.status !== 0) spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
+      if (r.status !== 0) {
+        console.error('Error: arc is not registered with PM2. Run `arc install` first.')
+        process.exit(1)
+      }
     } else {
-      spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
+      const r = spawnSync('pm2', ['start', 'arc'], { stdio: 'inherit' })
+      if (r.status !== 0) {
+        console.error('Error: arc is not registered with PM2. Run `arc install` first.')
+        process.exit(1)
+      }
     }
   })
 
@@ -143,6 +163,13 @@ program.command('stop').description('Stop the server').action(() => {
 // ─── restart ─────────────────────────────────────────────────────────────────
 program.command('restart').description('Restart the server').action(() => {
   spawnSync('pm2', ['restart', 'arc'], { stdio: 'inherit' })
+})
+
+// ─── uninstall ───────────────────────────────────────────────────────────────
+program.command('uninstall').description('Remove PM2 service (pm2 delete arc)').action(() => {
+  spawnSync('pm2', ['delete', 'arc'], { stdio: 'inherit' })
+  spawnSync('pm2', ['save'], { stdio: 'inherit' })
+  console.log('✓ arc removed from PM2.')
 })
 
 // ─── status ──────────────────────────────────────────────────────────────────

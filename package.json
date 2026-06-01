@@ -1,6 +1,6 @@
 {
   "name": "agent-remote-control",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Launch AI coding agents and surface their remote links in a browser UI",
   "type": "module",
   "license": "MIT",
