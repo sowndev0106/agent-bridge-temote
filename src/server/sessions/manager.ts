@@ -1,10 +1,26 @@
 import * as nodePty from 'node-pty'
 import { randomUUID } from 'crypto'
+import { createServer } from 'net'
 import { extractLink } from './link-extractor.js'
 import { resolveAgent, resolveCommand } from './agent-catalog.js'
 import { atomicWrite, readJson } from '../core/persistence.js'
 import { buildTerminalEnv } from '../core/terminal-env.js'
 import type { Session, AppConfig } from '../../types.js'
+
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.unref()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      const port = typeof address === 'string' ? 0 : address?.port ?? 0
+      server.close(() => {
+        resolve(port)
+      })
+    })
+  })
+}
 
 // node-pty provides a real PTY — required because claude (and similar agents)
 // check for TTY on startup and refuse to run in --print mode without one.
@@ -182,6 +198,12 @@ export class SessionManager {
     })
 
     let args = [...agent.args]
+    const hasPortPlaceholder = args.some(arg => arg.includes('{{port}}'))
+    if (hasPortPlaceholder) {
+      const freePort = await getFreePort()
+      args = args.map(arg => arg.replace('{{port}}', String(freePort)))
+    }
+
     if (session.agentId === 'claude') {
       // `providerSessionId` is the Claude Code conversation UUID. For legacy sessions it
       // may be filled from Claude's local jsonl filename, then restart must resume that
