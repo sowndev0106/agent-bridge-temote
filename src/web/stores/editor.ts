@@ -6,7 +6,8 @@ export interface EditorTab {
   path: string        // project-relative path
   title: string       // basename
   dirty: boolean
-  type?: 'edit' | 'diff'
+  type?: 'edit' | 'diff' | 'codex'
+  sessionId?: string
 }
 
 interface EditorStore {
@@ -14,6 +15,7 @@ interface EditorStore {
   activeTabId: string | null
   openFile: (projectId: string, path: string) => void
   openDiff: (projectId: string, path: string) => void
+  openCodexChat: (projectId: string, sessionId: string) => void
   closeTab: (id: string) => void
   setActive: (id: string) => void
   setDirty: (id: string, dirty: boolean) => void
@@ -39,6 +41,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
     if (state.tabs.some(t => t.id === id)) return { activeTabId: id }
     return {
       tabs: [...state.tabs, { id, projectId, path, title: `Diff: ${basename(path)}`, dirty: false, type: 'diff' }],
+      activeTabId: id
+    }
+  }),
+  openCodexChat: (projectId, sessionId) => set(state => {
+    const id = `codex:${sessionId}`
+    if (state.tabs.some(t => t.id === id)) return { activeTabId: id }
+    return {
+      tabs: [...state.tabs, { id, projectId, path: 'Codex Remote', title: 'Codex Chat', dirty: false, type: 'codex', sessionId }],
       activeTabId: id
     }
   }),

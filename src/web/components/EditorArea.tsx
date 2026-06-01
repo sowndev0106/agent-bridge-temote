@@ -8,6 +8,7 @@ import SessionsPanel from './SessionsPanel'
 // fetched only when the user opens a file (keeps the initial bundle small).
 const MonacoFilePanel = lazy(() => import('./MonacoFilePanel'))
 const MonacoDiffPanel = lazy(() => import('./MonacoDiffPanel'))
+import CodexChatPanel from './CodexChatPanel'
 const SESSIONS_PANEL_ID = 'sessions'
 
 function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
@@ -16,7 +17,7 @@ function SessionsPanelHost(props: IDockviewPanelProps<{ projectId: string }>) {
   return <SessionsPanel project={project} />
 }
 
-function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: string; path: string; type?: 'edit' | 'diff' }>) {
+function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: string; path: string; type?: 'edit' | 'diff' | 'codex' }>) {
   const type = props.params.type || 'edit'
   return (
     <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--color-bg-base)] text-xs text-[var(--color-text-muted)]">Loading editor…</div>}>
@@ -29,7 +30,11 @@ function FilePanelHost(props: IDockviewPanelProps<{ tabId: string; projectId: st
   )
 }
 
-const components = { sessions: SessionsPanelHost, file: FilePanelHost }
+function CodexPanelHost(props: IDockviewPanelProps<{ sessionId: string }>) {
+  return <CodexChatPanel sessionId={props.params.sessionId} />
+}
+
+const components = { sessions: SessionsPanelHost, file: FilePanelHost, codex: CodexPanelHost }
 
 export default function EditorArea({ projectId }: { projectId: string }) {
   const apiRef = useRef<DockviewApi | null>(null)
@@ -79,8 +84,8 @@ export default function EditorArea({ projectId }: { projectId: string }) {
       if (!api.getPanel(tab.id)) {
         api.addPanel({
           id: tab.id,
-          component: 'file',
-          params: { tabId: tab.id, projectId: tab.projectId, path: tab.path, type: tab.type },
+          component: tab.type === 'codex' ? 'codex' : 'file',
+          params: { tabId: tab.id, projectId: tab.projectId, path: tab.path, type: tab.type, sessionId: tab.sessionId },
           title: tab.title
         })
       }

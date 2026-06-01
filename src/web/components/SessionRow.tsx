@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
 import { useUIStore } from '../stores/ui'
 import { useTerminalsStore } from '../stores/terminals'
+import { useEditorStore } from '../stores/editor'
 import { sendWsMessage } from '../lib/ws'
 import { shortId, formatDuration, formatClock } from '../lib/format'
 import type { Session } from '../../types'
@@ -45,6 +46,10 @@ export default function SessionRow({ session, compact = false }: { session: Sess
   }
 
   const openTerminal = () => {
+    if (session.agentId === 'codex') {
+      useEditorStore.getState().openCodexChat(session.projectId, session.id)
+      return
+    }
     const existing = useTerminalsStore.getState().tabs.find(t => t.sessionId === session.id)
     if (existing) {
       useTerminalsStore.getState().setActiveTab(existing.id)
@@ -98,12 +103,22 @@ export default function SessionRow({ session, compact = false }: { session: Sess
         </p>
       </div>
 
-      {session.state === 'running' && session.remoteLink && (
-        <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
-          className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
-          title="Open remote control">
-          Open Remote <ExternalLink size={13} />
-        </a>
+      {session.state === 'running' && (
+        session.agentId === 'codex' ? (
+          <button type="button" onClick={openTerminal}
+            className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
+            title="Open remote workspace">
+            Open Remote <ExternalLink size={13} />
+          </button>
+        ) : (
+          session.remoteLink && (
+            <a href={session.remoteLink} target="_blank" rel="noopener noreferrer"
+              className="hidden shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent-glow)] sm:inline-flex"
+              title="Open remote control">
+              Open Remote <ExternalLink size={13} />
+            </a>
+          )
+        )
       )}
 
       <div className={`flex shrink-0 items-center ${compact ? 'gap-0 opacity-0 group-hover:opacity-100 transition-opacity mt-[3px]' : 'gap-0.5 mt-[4px]'}`}>

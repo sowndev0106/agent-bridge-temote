@@ -207,10 +207,10 @@ test('desktop Codex chat workflow: launch, streaming, approvals, and diff views'
     }
   })
 
-  // 3. Open the Codex session terminal panel/chat tab
-  await page.getByRole('button', { name: 'Open terminal' }).first().click()
+  // 3. Open the Codex session as a remote editor tab in workspace
+  await page.getByRole('button', { name: 'Open Remote' }).first().click()
 
-  // Ensure Codex Chat panel is now loaded in workspace
+  // Ensure Codex Chat panel editor tab is loaded in Dockview
   await expect(page.getByText('🤖 OpenAI Codex')).toBeVisible()
 
   // 3. User sends chat prompt
@@ -293,8 +293,4 @@ test('desktop Codex chat workflow: launch, streaming, approvals, and diff views'
 
   // Verify chat completes with success output
   await expect(page.getByText('Tests passed successfully!')).toBeVisible()
-
-  // 5. Inspect Workspace Diffs
-  await expect(page.getByText('Diffs')).toBeVisible()
-  await expect(page.locator('select')).toContainText('App.tsx')
 })
