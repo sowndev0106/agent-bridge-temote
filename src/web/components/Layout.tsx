@@ -12,7 +12,6 @@ import AgentSelectorModal from './AgentSelectorModal'
 import AddProjectModal from './AddProjectModal'
 import DeleteProjectModal from './DeleteProjectModal'
 import LogsDrawer from './LogsDrawer'
-import CodexRemoteModal from './CodexRemoteModal'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false)
@@ -67,7 +66,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <AddProjectModal />
       <DeleteProjectModal />
       <LogsDrawer />
-      <CodexRemoteModal />
       <Toaster />
     </div>
   )

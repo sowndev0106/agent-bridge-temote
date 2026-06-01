@@ -4,6 +4,7 @@ import { useTerminalsStore, type TerminalTabInfo } from '../stores/terminals'
 import { useSessionsStore } from '../stores/sessions'
 import { useProjectsStore } from '../stores/projects'
 import TerminalTab from './TerminalTab'
+import CodexChatPanel from './CodexChatPanel'
 import { sendWsMessage } from '../lib/ws'
 
 export default function TerminalPanel() {
@@ -145,13 +146,30 @@ export default function TerminalPanel() {
       {/* Terminal content — ALL tabs stay mounted (hidden via isActive) to preserve
           xterm state when switching projects; only the active visible one is shown. */}
       <div className="flex-1 relative overflow-hidden">
-        {tabs.map(tab => (
-          <TerminalTab
-            key={tab.id}
-            terminalId={tab.id}
-            isActive={tab.id === effectiveActiveId}
-          />
-        ))}
+        {tabs.map(tab => {
+          const session = tab.sessionId ? sessions.find(s => s.id === tab.sessionId) : null
+          const isCodex = session?.agentId === 'codex'
+
+          if (isCodex) {
+            return (
+              <div
+                key={tab.id}
+                className="h-full w-full"
+                style={{ display: tab.id === effectiveActiveId ? 'block' : 'none' }}
+              >
+                <CodexChatPanel sessionId={tab.sessionId!} />
+              </div>
+            )
+          }
+
+          return (
+            <TerminalTab
+              key={tab.id}
+              terminalId={tab.id}
+              isActive={tab.id === effectiveActiveId}
+            />
+          )
+        })}
       </div>
     </div>
   )

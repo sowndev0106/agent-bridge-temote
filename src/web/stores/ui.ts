@@ -37,7 +37,6 @@ interface UIStore {
   projectOrder: string[]
   mobileSidebarOpen: boolean
   toasts: Toast[]
-  codexRemoteSessionId: string | null
   setAddProjectOpen: (open: boolean) => void
   setAgentSelectorProjectId: (id: string | null) => void
   setDeleteProjectId: (id: string | null) => void
@@ -51,7 +50,6 @@ interface UIStore {
   removeProjectFromOrder: (id: string) => void
   addToast: (message: string, type?: Toast['type']) => void
   removeToast: (id: string) => void
-  setCodexRemoteSessionId: (id: string | null) => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -63,7 +61,6 @@ export const useUIStore = create<UIStore>((set) => ({
   projectOrder: readProjectOrder(),
   mobileSidebarOpen: false,
   toasts: [],
-  codexRemoteSessionId: null,
   setAddProjectOpen: (open) => set({ addProjectOpen: open }),
   setAgentSelectorProjectId: (id) => set({ agentSelectorProjectId: id }),
   setDeleteProjectId: (id) => set({ deleteProjectId: id }),
@@ -72,7 +69,6 @@ export const useUIStore = create<UIStore>((set) => ({
   toggleProjectSidebarExpanded: () => set(state => ({ projectSidebarExpanded: !state.projectSidebarExpanded })),
   setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
   toggleMobileSidebar: () => set(state => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
-  setCodexRemoteSessionId: (id) => set({ codexRemoteSessionId: id }),
   setProjectOrder: (ids) => {
     writeProjectOrder(ids)
     set({ projectOrder: ids })

@@ -10,6 +10,24 @@ export interface Project {
   createdAt: string
 }
 
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'agent'
+  content: string
+  timestamp: string
+}
+
+export interface CodexActiveTurn {
+  id: string
+  status: 'running' | 'completed' | 'interrupted'
+  delta?: string
+  approval?: {
+    id: string
+    command: string
+    status: 'pending' | 'approved' | 'rejected'
+  }
+}
+
 export interface Session {
   id: string
   projectId: string
@@ -24,7 +42,10 @@ export interface Session {
   startedAt: string
   stoppedAt: string | null
   error: string | null
+  chatHistory?: ChatMessage[]
+  activeTurn?: CodexActiveTurn | null
 }
+
 
 export interface AgentDefinition {
   id: string
@@ -32,7 +53,7 @@ export interface AgentDefinition {
   command: string
   args: string[]
   env: Record<string, string>
-  linkPattern: string
+  linkPattern: string | null
   enabled: boolean
 }
 
@@ -40,7 +61,7 @@ export interface AgentOverride {
   command?: string
   args?: string[]
   env?: Record<string, string>
-  linkPattern?: string
+  linkPattern?: string | null
   enabled?: boolean
 }
 

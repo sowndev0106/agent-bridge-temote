@@ -3,6 +3,7 @@ import { resolveAgent } from './agent-catalog.js'
 import { atomicWrite, readJson } from '../core/persistence.js'
 import type { Session, AppConfig } from '../../types.js'
 import { PtyAgentAdapter } from './pty-adapter.js'
+import { CodexAgentAdapter } from './codex-adapter.js'
 import type { AgentAdapter } from './adapter.js'
 
 function isPidAlive(pid: number): boolean {
@@ -41,6 +42,7 @@ interface ManagerOptions {
 export class SessionManager {
   private sessions = new Map<string, Session>()
   private ptyAdapter: PtyAgentAdapter
+  private codexAdapter: CodexAgentAdapter
   private opts: ManagerOptions
   // Persists are fire-and-forget on the hot path, but SERIALIZED through this chain so two
   // atomicWrites never race (last-writer-wins on the same file would otherwise be
@@ -50,10 +52,13 @@ export class SessionManager {
   constructor(opts: ManagerOptions) {
     this.opts = opts
     this.ptyAdapter = new PtyAgentAdapter(this)
+    this.codexAdapter = new CodexAgentAdapter(this)
   }
 
   private getAdapter(agentId: string): AgentAdapter {
-    // Phase 1: Only PtyAgentAdapter exists. Phase 2 Codex details will go here.
+    if (agentId === 'codex') {
+      return this.codexAdapter
+    }
     return this.ptyAdapter
   }
 

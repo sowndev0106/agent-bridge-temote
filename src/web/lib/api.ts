@@ -72,5 +72,8 @@ export const api = {
   getConfig: () => request<SafeConfig>('GET', '/api/config'),
   updateConfig: (data: Partial<AppConfig>) => request<SafeConfig>('PUT', '/api/config', data),
   getGitStatus: (projectId: string) => request<GitStatusResult>('GET', `/api/projects/${projectId}/git/status`),
-  getGitDiff: (projectId: string, path: string) => request<GitFileDiffResult>('GET', `/api/projects/${projectId}/git/diff?path=${encodeURIComponent(path)}`)
+  getGitDiff: (projectId: string, path: string) => request<GitFileDiffResult>('GET', `/api/projects/${projectId}/git/diff?path=${encodeURIComponent(path)}`),
+  sendCodexMessage: (sessionId: string, input: string) => request<Session>('POST', `/api/sessions/${sessionId}/messages`, { input }),
+  interruptCodexTurn: (sessionId: string) => request<Session>('POST', `/api/sessions/${sessionId}/interrupt`),
+  resolveCodexApproval: (sessionId: string, approvalId: string, decision: 'approved' | 'rejected') => request<Session>('POST', `/api/sessions/${sessionId}/approvals/${approvalId}`, { decision })
 }

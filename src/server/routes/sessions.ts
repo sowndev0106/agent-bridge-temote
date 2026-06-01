@@ -76,6 +76,65 @@ export async function sessionRoutes(fastify: FastifyInstance, manager: SessionMa
     reply.send({ ok: true, data: manager.getSession(id) })
   })
 
+  fastify.post('/api/sessions/:id/messages', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { input } = request.body as { input: string }
+    if (!input) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"input" is required' } })
+    }
+
+    const session = manager.getSession(id)
+    if (!session) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Session not found' } })
+
+    const adapter = (manager as any).getAdapter(session.agentId)
+    if (typeof adapter.sendMessage !== 'function') {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Agent ${session.agentId} does not support rich chat messages` } })
+    }
+
+    await adapter.sendMessage(id, input)
+    reply.send({ ok: true, data: manager.getSession(id) })
+  })
+
+  fastify.post('/api/sessions/:id/interrupt', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const session = manager.getSession(id)
+    if (!session) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Session not found' } })
+
+    const adapter = (manager as any).getAdapter(session.agentId)
+    if (session.agentId === 'codex' && session.activeTurn) {
+      const state = (adapter as any).sessions.get(id)
+      if (state) {
+        await state.client.sendRequest('turn/interrupt', {
+          threadId: session.providerSessionId,
+          turnId: session.activeTurn.id
+        })
+        session.activeTurn.status = 'interrupted'
+        manager.updateSession(id, { activeTurn: session.activeTurn })
+      }
+    }
+
+    reply.send({ ok: true, data: manager.getSession(id) })
+  })
+
+  fastify.post('/api/sessions/:id/approvals/:approvalId', async (request, reply) => {
+    const { id, approvalId } = request.params as { id: string; approvalId: string }
+    const { decision } = request.body as { decision: 'approved' | 'rejected' }
+    if (!decision) {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: '"decision" is required' } })
+    }
+
+    const session = manager.getSession(id)
+    if (!session) return reply.code(404).send({ ok: false, error: { code: 'not_found', message: 'Session not found' } })
+
+    const adapter = (manager as any).getAdapter(session.agentId)
+    if (typeof adapter.resolveApproval !== 'function') {
+      return reply.code(400).send({ ok: false, error: { code: 'bad_request', message: `Agent ${session.agentId} does not support approvals` } })
+    }
+
+    await adapter.resolveApproval(id, approvalId, decision)
+    reply.send({ ok: true, data: manager.getSession(id) })
+  })
+
   fastify.delete('/api/sessions/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     try {
