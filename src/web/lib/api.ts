@@ -5,8 +5,9 @@ let csrfToken = ''
 export function setCsrfToken(t: string) { csrfToken = t }
 export function getCsrfToken() { return csrfToken }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+async function request<T>(method: string, url: string, body?: unknown, _retried = false): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (['POST', 'PUT', 'DELETE'].includes(method) && csrfToken) {
     headers['X-CSRF-Token'] = csrfToken
   }
@@ -14,10 +15,19 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     method,
     headers,
     credentials: 'include',
-    body: body ? JSON.stringify(body) : undefined
+    body: body !== undefined ? JSON.stringify(body) : undefined
   })
   const json = await res.json()
-  if (!json.ok) throw new Error(json.error?.message ?? 'Request failed')
+  if (!json.ok) {
+    // CSRF token expired or lost (e.g. after HMR). Fetch a fresh token and retry once.
+    if (!_retried && json.error?.code === 'csrf_missing') {
+      const refreshRes = await fetch('/api/auth/csrf', { credentials: 'include' })
+      const refreshJson = await refreshRes.json()
+      if (refreshJson.ok) setCsrfToken(refreshJson.data.csrfToken)
+      return request<T>(method, url, body, true)
+    }
+    throw new Error(json.error?.message ?? 'Request failed')
+  }
   return json.data as T
 }
 

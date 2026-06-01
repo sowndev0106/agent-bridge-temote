@@ -1,6 +1,7 @@
 import Header from './Header'
 import Sidebar from './Sidebar'
 import TerminalPanel from './TerminalPanel'
+import Toaster from './Toaster'
 import { useUIStore } from '../stores/ui'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <TerminalPanel />
         </div>
       </div>
+      <Toaster />
     </div>
   )
 }

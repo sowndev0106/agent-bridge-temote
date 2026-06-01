@@ -18,7 +18,7 @@ export default function ProjectWorkspace() {
   const { projectId } = useParams()
   const { projects } = useProjectsStore()
   const { sessions, removeSession } = useSessionsStore()
-  const { setAgentSelectorProjectId } = useUIStore()
+  const { setAgentSelectorProjectId, addToast } = useUIStore()
   const [clearing, setClearing] = useState(false)
 
   const project = projects.find(p => p.id === projectId)
@@ -56,10 +56,12 @@ export default function ProjectWorkspace() {
     setClearing(true)
     // Fire all deletes in parallel; remove each from the store only when its
     // request succeeds, so a partial failure leaves the still-present ones in view.
-    await Promise.allSettled(clearable.map(async s => {
+    const results = await Promise.allSettled(clearable.map(async s => {
       await api.deleteSession(s.id)
       removeSession(s.id)
     }))
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) addToast(`Failed to delete ${failed} session${failed === 1 ? '' : 's'}`)
     setClearing(false)
   }
 

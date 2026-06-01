@@ -28,12 +28,21 @@ const ACT = 'flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)]
 
 export default function SessionRow({ session }: { session: Session }) {
   const { updateSession, removeSession } = useSessionsStore()
-  const { setLogsSessionId } = useUIStore()
+  const { setLogsSessionId, addToast } = useUIStore()
   const live = session.state === 'running' || session.state === 'launching'
 
-  const stop = async () => updateSession(session.id, await api.stopSession(session.id))
-  const restart = async () => updateSession(session.id, await api.restartSession(session.id))
-  const remove = async () => { await api.deleteSession(session.id); removeSession(session.id) }
+  const stop = async () => {
+    try { updateSession(session.id, await api.stopSession(session.id)) }
+    catch (e) { addToast((e as Error).message) }
+  }
+  const restart = async () => {
+    try { updateSession(session.id, await api.restartSession(session.id)) }
+    catch (e) { addToast((e as Error).message) }
+  }
+  const remove = async () => {
+    try { await api.deleteSession(session.id); removeSession(session.id) }
+    catch (e) { addToast((e as Error).message) }
+  }
 
   const openTerminal = () => {
     const existing = useTerminalsStore.getState().tabs.find(t => t.sessionId === session.id)
