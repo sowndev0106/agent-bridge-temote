@@ -87,6 +87,22 @@ export function useWebSocket() {
               // Handled at call site via dispatch or store action
               break
             }
+            case 'terminal.list': {
+              // Server pushes a snapshot of all currently-running standalone
+              // PTYs on (re)connect. The PTYs survived the previous browser
+              // session — they just weren't visible to the client. Restore
+              // tabs so the user can re-attach to them.
+              for (const t of msg.payload.terminals) {
+                addTab({
+                  id: t.id,
+                  title: t.title,
+                  type: 'standalone',
+                  pid: t.pid,
+                  projectId: t.projectId
+                })
+              }
+              break
+            }
           }
         } catch { /* ignore malformed */ }
       }

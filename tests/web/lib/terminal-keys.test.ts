@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { encodeNamedKey, encodeCtrlLetter, encodeAltLetter, encodeShiftTab } from '../../../src/web/lib/terminal-keys'
+import {
+  encodeNamedKey,
+  encodeCtrlLetter,
+  encodeAltLetter,
+  encodeShiftTab,
+  encodeAltKey
+} from '../../../src/web/lib/terminal-keys'
 
 describe('encodeNamedKey', () => {
   it('returns escape sequences for arrow keys', () => {
@@ -75,5 +81,14 @@ describe('encodeAltLetter', () => {
 describe('encodeShiftTab', () => {
   it('returns CSI Z', () => {
     expect(encodeShiftTab()).toBe('\x1b[Z')
+  })
+})
+
+describe('encodeAltKey', () => {
+  it('prepends ESC to the named key sequence', () => {
+    expect(encodeAltKey('Tab')).toBe('\x1b\t')
+    expect(encodeAltKey('Enter')).toBe('\x1b\r')
+    expect(encodeAltKey('Escape')).toBe('\x1b\x1b')
+    expect(encodeAltKey('ArrowUp')).toBe('\x1b\x1b[A')
   })
 })

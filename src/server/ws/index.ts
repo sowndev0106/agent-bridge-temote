@@ -43,6 +43,22 @@ export function createWsServer(httpServer: Server, sessionSecret: string, ctx?: 
     clients.add(ws)
     clientTerminals.set(ws, new Set())
 
+    // Send the list of currently-running standalone terminals so a freshly
+    // connected (or reconnected) browser can re-attach to PTYs that survived
+    // a previous disconnect. Without this, closing and reopening the browser
+    // appears to "kill" the terminal — the PTY is still alive server-side,
+    // but the client has no way to discover it.
+    if (ctx) {
+      const existing = ctx.terminalManager.list()
+      if (existing.length > 0) {
+        console.log('[Server WS] Sending terminal.list with', existing.length, 'existing terminals to new client')
+        ws.send(JSON.stringify({
+          type: 'terminal.list',
+          payload: { terminals: existing }
+        }))
+      }
+    }
+
     ws.on('message', (raw) => {
       console.log('[Server WS] Received raw client message:', raw.toString())
       if (!ctx) {
@@ -70,7 +86,7 @@ export function createWsServer(httpServer: Server, sessionSecret: string, ctx?: 
     switch (msg.type) {
       case 'terminal.create': {
         console.log('[Server WS] Spawning new standalone terminal PTY')
-        const info = ctx.terminalManager.create(msg.payload.cwd)
+        const info = ctx.terminalManager.create(msg.payload.cwd, msg.payload.projectId ?? null)
         const termIds = clientTerminals.get(ws)
         termIds?.add(info.id)
         const response: WsEvent = {

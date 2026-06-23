@@ -11,6 +11,7 @@ export interface TerminalInfo {
   pid: number
   cwd: string
   createdAt: string
+  projectId: string | null
 }
 
 type TerminalEventCallback = (event: { type: string; payload: unknown }) => void
@@ -23,7 +24,7 @@ export class TerminalManager {
     this.onEvent = onEvent
   }
 
-  create(cwd?: string): TerminalInfo {
+  create(cwd?: string, projectId: string | null = null): TerminalInfo {
     const id = randomUUID()
     const shell = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash')
     const resolvedCmd = resolveCommand(shell)
@@ -42,7 +43,8 @@ export class TerminalManager {
       title: `Terminal ${this.terminals.size + 1}`,
       pid: pty.pid,
       cwd: effectiveCwd,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      projectId
     }
 
     this.terminals.set(id, { info, pty })

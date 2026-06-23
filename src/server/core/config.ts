@@ -7,7 +7,7 @@ import type { AppConfig } from '../../types.js'
 export { CONFIG_DIR, CONFIG_FILE }
 
 export const CONFIG_DEFAULTS: AppConfig = {
-  port: 4096,
+  port: 4444,
   host: '0.0.0.0',
   password: '',
   sessionSecret: '',

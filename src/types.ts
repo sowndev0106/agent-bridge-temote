@@ -131,6 +131,7 @@ export type TerminalServerEvent =
   | { type: 'terminal.created';  payload: { terminalId: string; title: string; pid: number; projectId?: string | null } }
   | { type: 'terminal.closed';   payload: { terminalId: string } }
   | { type: 'terminal.attached'; payload: { terminalId: string; sessionId: string } }
+  | { type: 'terminal.list';     payload: { terminals: Array<{ id: string; title: string; pid: number; cwd: string; createdAt: string; projectId: string | null }> } }
 
 export type WsEvent =
   // logs are streamed only via 'session.log' + the initial GET /api/sessions

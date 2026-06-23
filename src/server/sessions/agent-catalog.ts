@@ -5,7 +5,10 @@ export const BUILT_IN_AGENTS: AgentDefinition[] = [
     id: 'claude',
     name: 'Claude Code',
     command: 'claude',
-    args: ['--remote-control'],
+    // --dangerously-skip-permissions skips Claude Code's per-tool permission prompts
+    // (file edits, shell commands). The user explicitly opted in to the default
+    // being "non-interactive" so the agent can run unattended in a remote tab.
+    args: ['--remote-control', '--dangerously-skip-permissions'],
     env: {},
     linkPattern: 'https://claude\\.ai/code/session_[\\w]+',
     enabled: true

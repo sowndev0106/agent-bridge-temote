@@ -41,3 +41,7 @@ export function encodeAltLetter(letter: string): string {
 export function encodeShiftTab(): string {
   return '\x1b[Z'
 }
+
+export function encodeAltKey(name: NamedKey): string {
+  return '\x1b' + encodeNamedKey(name)
+}
