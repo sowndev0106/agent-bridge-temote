@@ -14,8 +14,13 @@ const SANDBOX_HOME = join(tmpdir(), 'rb-vitest-home')
 export default defineConfig({
   root: '.',
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
+    // Node environment is the default; React component tests under tests/web
+    // run in jsdom (added for the mobile keypad work).
     environment: 'node',
+    environmentMatchGlobs: [
+      ['tests/web/**', 'jsdom']
+    ],
     // 'forks' (child_process), not the default worker threads: os.homedir() reads the
     // native env via libuv getenv(), which only reflects process.env mutations in a real
     // process — in a worker thread setup.ts's HOME override wouldn't reach it.
