@@ -1,16 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import LoginPage from './pages/LoginPage'
 import Overview from './pages/Overview'
 import ProjectWorkspace from './pages/ProjectWorkspace'
 import SettingsPage from './pages/SettingsPage'
 import Layout from './components/Layout'
 import { api, setCsrfToken } from './lib/api'
-import { useWebSocket } from './lib/ws'
+import { useWebSocket, sendWsMessage } from './lib/ws'
 import { useConfigStore } from './stores/config'
 import { useSessionsStore } from './stores/sessions'
 import { useProjectsStore } from './stores/projects'
 import { useEditorStore } from './stores/editor'
+import { useTerminalsStore, loadPersistedSessionTabs } from './stores/terminals'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -34,11 +35,49 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function AppInner() {
   useWebSocket()
+  const wsConnected = useConfigStore(s => s.wsConnected)
+  const [sessionsFetched, setSessionsFetched] = useState(false)
+  const restoredTabsRef = useRef(false)
 
   useEffect(() => {
-    api.getSessions().then(s => useSessionsStore.getState().setSessions(s)).catch(() => {})
+    api.getSessions()
+      .then(s => useSessionsStore.getState().setSessions(s))
+      .catch(() => {})
+      .finally(() => setSessionsFetched(true))
     api.getProjects().then(p => useProjectsStore.getState().setProjects(p)).catch(() => {})
   }, [])
+
+  // After a reload, re-open terminal tabs for sessions that are still running.
+  // Runs once both the WebSocket is open (so terminal.attach is delivered) and
+  // the session list has been fetched (so we know which sessions still exist).
+  useEffect(() => {
+    if (restoredTabsRef.current) return
+    if (!wsConnected || !sessionsFetched) return
+    restoredTabsRef.current = true
+
+    const saved = loadPersistedSessionTabs()
+    if (saved.length === 0) return
+    const sessions = useSessionsStore.getState().sessions
+    const terminals = useTerminalsStore.getState()
+
+    for (const tab of saved) {
+      const session = sessions.find(s => s.id === tab.sessionId)
+      // Skip sessions that were deleted, stopped, or are Codex (chat UI, not a PTY tab).
+      if (!session) continue
+      if (session.agentId === 'codex') continue
+      if (session.state !== 'running' && session.state !== 'launching') continue
+      if (terminals.tabs.some(t => t.sessionId === session.id)) continue
+
+      sendWsMessage({ type: 'terminal.attach', payload: { sessionId: session.id } })
+      terminals.addTab({
+        id: session.id,
+        title: tab.title,
+        type: 'session',
+        sessionId: session.id,
+        projectId: session.projectId
+      })
+    }
+  }, [wsConnected, sessionsFetched])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
