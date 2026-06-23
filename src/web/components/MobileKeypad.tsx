@@ -114,7 +114,7 @@ function CompactBar(props: {
   )
 }
 
-function ExpandedSheet(_: {
+function ExpandedSheet(props: {
   armed: Modifier | null
   onArm: (m: Modifier) => void
   onSendNamed: (n: NamedKey) => void
@@ -122,8 +122,119 @@ function ExpandedSheet(_: {
   onSendLiteral: (s: string) => void
   onCollapse: () => void
 }) {
-  // Stub — Task 5 will fill this in.
-  return null
+  const { armed, onArm, onSendNamed, onSendWithArmed, onSendLiteral, onCollapse } = props
+  type Tab = 'nav' | 'edit' | 'ctrl' | 'sym'
+  const [tab, setTab] = useState<Tab>('nav')
+
+  const sendKey = (name: NamedKey) => onSendNamed(name)
+  const sendCtrl = (letter: string) => {
+    if (armed === 'alt') onSendWithArmed(letter, 'alt')
+    else if (armed === 'shift') onSendWithArmed(letter, 'shift')
+    else onSendWithArmed(letter, 'ctrl') // default behavior in Ctrl tab still uses ctrl encoder if no armed
+  }
+  const sendLiteral = (s: string) => onSendLiteral(armed === 'shift' ? s.toUpperCase() : s)
+
+  return (
+    <div className="flex flex-col p-1" data-testid="keypad-expanded">
+      <div className="flex items-center gap-1">
+        <KeyButton label="×" onClick={onCollapse} testId="keypad-collapse" title="Hide keypad" />
+        <TabButton id="nav" active={tab} setActive={setTab}>Nav</TabButton>
+        <TabButton id="edit" active={tab} setActive={setTab}>Edit</TabButton>
+        <TabButton id="ctrl" active={tab} setActive={setTab}>Ctrl</TabButton>
+        <TabButton id="sym" active={tab} setActive={setTab}>123</TabButton>
+        <span className="ml-auto px-2 text-xs text-[var(--color-text-secondary)]">
+          {armed ? armed.toUpperCase() + ' armed' : 'no modifier'}
+        </span>
+      </div>
+
+      {tab === 'nav' && (
+        <div className="mt-1 grid grid-cols-4 gap-1">
+          <KeyButton label="Home" onClick={() => sendKey('Home')} />
+          <KeyButton label="End" onClick={() => sendKey('End')} />
+          <KeyButton label="PgUp" onClick={() => sendKey('PageUp')} />
+          <KeyButton label="PgDn" onClick={() => sendKey('PageDown')} />
+          <KeyButton label="↑" onClick={() => sendKey('ArrowUp')} />
+          <KeyButton label="↓" onClick={() => sendKey('ArrowDown')} />
+          <KeyButton label="←" onClick={() => sendKey('ArrowLeft')} />
+          <KeyButton label="→" onClick={() => sendKey('ArrowRight')} />
+        </div>
+      )}
+
+      {tab === 'edit' && (
+        <div className="mt-1 grid grid-cols-4 gap-1">
+          <KeyButton label="Esc" onClick={() => sendKey('Escape')} testId="edit-esc" />
+          <KeyButton label="Tab" onClick={() => sendKey('Tab')} />
+          <KeyButton label="⇧Tab" onClick={() => onSendLiteral(encodeShiftTab())} />
+          <KeyButton label="⏎" onClick={() => sendKey('Enter')} />
+          <KeyButton label="⌫" onClick={() => sendKey('Backspace')} />
+          <KeyButton label="Del" onClick={() => sendKey('Delete')} />
+          <KeyButton label="Ins" onClick={() => sendKey('Insert')} />
+          <KeyButton label="Space" onClick={() => onSendLiteral(' ')} />
+        </div>
+      )}
+
+      {tab === 'ctrl' && (
+        <div className="mt-1 grid grid-cols-6 gap-1">
+          {Array.from({ length: 26 }, (_, i) => {
+            const letter = String.fromCharCode(97 + i)
+            return (
+              <KeyButton
+                key={letter}
+                label={'^' + letter.toUpperCase()}
+                onClick={() => sendCtrl(letter)}
+                testId={`ctrl-${letter}`}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {tab === 'sym' && (
+        <div className="mt-1 grid grid-cols-6 gap-1">
+          {[
+            { label: '|', send: '|', testId: 'sym-pipe' },
+            { label: '~', send: '~', testId: 'sym-tilde' },
+            { label: '\\', send: '\\', testId: 'sym-backslash' },
+            { label: '`', send: '`', testId: 'sym-backtick' },
+            { label: '{', send: '{', testId: 'sym-lbrace' },
+            { label: '}', send: '}', testId: 'sym-rbrace' },
+            { label: '[', send: '[', testId: 'sym-lbracket' },
+            { label: ']', send: ']', testId: 'sym-rbracket' },
+            { label: '<', send: '<', testId: 'sym-langle' },
+            { label: '>', send: '>', testId: 'sym-rangle' },
+            { label: '$', send: '$', testId: 'sym-dollar' },
+            { label: '_', send: '_', testId: 'sym-underscore' },
+            { label: '"', send: '"', testId: 'sym-dquote' },
+            { label: "'", send: "'", testId: 'sym-squote' },
+            { label: '=', send: '=', testId: 'sym-eq' },
+            { label: '+', send: '+', testId: 'sym-plus' }
+          ].map(k => (
+            <KeyButton key={k.testId} label={k.label} onClick={() => sendLiteral(k.send)} testId={k.testId} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabButton(props: { id: string; active: string; setActive: (s: any) => void; children: React.ReactNode }) {
+  const { id, active, setActive, children } = props
+  const isActive = active === id
+  return (
+    <button
+      type="button"
+      onClick={() => setActive(id)}
+      data-testid={`tab-${id}`}
+      className={
+        'min-h-9 rounded px-3 text-sm font-medium ' +
+        (isActive
+          ? 'bg-[var(--color-accent)] text-white'
+          : 'bg-[var(--color-bg-overlay)] text-[var(--color-text-primary)]')
+      }
+    >
+      {children}
+    </button>
+  )
 }
 
 function KeyButton(props: {

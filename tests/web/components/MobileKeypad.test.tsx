@@ -64,4 +64,46 @@ describe('MobileKeypad', () => {
     })
     expect(screen.queryByTestId('keypad-armed-row')).toBeNull()
   })
+
+  it('expanded sheet renders all four tabs', () => {
+    render(<MobileKeypad terminalId="t-1" />)
+    fireEvent.click(screen.getByTestId('keypad-toggle'))
+    expect(screen.getByTestId('tab-nav')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-edit')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-ctrl')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-sym')).toBeInTheDocument()
+  })
+
+  it('Ctrl tab shows A–Z grid; tapping ^R sends 0x12', () => {
+    render(<MobileKeypad terminalId="t-7" />)
+    fireEvent.click(screen.getByTestId('keypad-toggle'))
+    fireEvent.click(screen.getByTestId('tab-ctrl'))
+    expect(screen.getByTestId('ctrl-r')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('ctrl-r'))
+    expect(sendWsMessage).toHaveBeenCalledWith({
+      type: 'terminal.input',
+      payload: { terminalId: 't-7', data: '\x12' }
+    })
+  })
+
+  it('Sym tab has pipe, tilde, backslash, backtick, braces', () => {
+    render(<MobileKeypad terminalId="t-1" />)
+    fireEvent.click(screen.getByTestId('keypad-toggle'))
+    fireEvent.click(screen.getByTestId('tab-sym'))
+    expect(screen.getByTestId('sym-pipe')).toBeInTheDocument()
+    expect(screen.getByTestId('sym-tilde')).toBeInTheDocument()
+    expect(screen.getByTestId('sym-backslash')).toBeInTheDocument()
+    expect(screen.getByTestId('sym-backtick')).toBeInTheDocument()
+    expect(screen.getByTestId('sym-lbrace')).toBeInTheDocument()
+    expect(screen.getByTestId('sym-rbrace')).toBeInTheDocument()
+  })
+
+  it('collapse button returns to compact bar', () => {
+    render(<MobileKeypad terminalId="t-1" />)
+    fireEvent.click(screen.getByTestId('keypad-toggle'))
+    fireEvent.click(screen.getByTestId('keypad-collapse'))
+    expect(screen.getByTestId('keypad-toggle')).toBeInTheDocument()
+    // toggle button in compact bar is the same test id; confirm no tabs anymore
+    expect(screen.queryByTestId('tab-nav')).toBeNull()
+  })
 })
