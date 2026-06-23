@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { sendWsMessage } from '../lib/ws'
+import MobileKeypad from './MobileKeypad'
 
 interface TerminalTabProps {
   terminalId: string
@@ -116,10 +117,9 @@ export default function TerminalTab({ terminalId, isActive }: TerminalTabProps) 
   }, [])
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full"
-      style={{ display: isActive ? 'block' : 'none' }}
-    />
+    <div className="flex h-full w-full flex-col" style={{ display: isActive ? 'flex' : 'none' }}>
+      <div ref={containerRef} className="min-h-0 flex-1" />
+      {isActive && <MobileKeypad terminalId={terminalId} />}
+    </div>
   )
 }
