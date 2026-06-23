@@ -25,7 +25,6 @@ export default function MobileKeypad({ terminalId }: Props) {
   const send = (data: string) => {
     sendWsMessage({ type: 'terminal.input', payload: { terminalId, data } })
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      // @ts-expect-error - vibrate is in spec but not all TS lib versions
       navigator.vibrate(10)
     }
   }
