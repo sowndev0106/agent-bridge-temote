@@ -42,6 +42,7 @@ export default function MobileKeypad({ terminalId }: Props) {
     if (mod === 'ctrl') send(encodeCtrlLetter(base))
     else if (mod === 'alt') send(encodeAltLetter(base))
     else if (mod === 'shift') send(base.toUpperCase())
+    setArmed(null)
   }
 
   return (
@@ -63,6 +64,7 @@ export default function MobileKeypad({ terminalId }: Props) {
           armed={armed}
           onArm={tapModifier}
           onSendNamed={sendNamed}
+          onSendWithArmed={sendWithArmed}
           onExpand={() => setExpanded(true)}
         />
       )}
@@ -78,22 +80,36 @@ function CompactBar(props: {
   armed: Modifier | null
   onArm: (m: Modifier) => void
   onSendNamed: (n: NamedKey) => void
+  onSendWithArmed: (base: string, mod: Modifier) => void
   onExpand: () => void
 }) {
-  const { armed, onArm, onSendNamed, onExpand } = props
+  const { armed, onArm, onSendNamed, onSendWithArmed, onExpand } = props
   return (
-    <div className="flex items-center gap-1 p-1">
-      <KeyButton label="⌃" armed={armed === 'ctrl'} onClick={() => onArm('ctrl')} testId="mod-ctrl" title="Ctrl" />
-      <KeyButton label="⎇" armed={armed === 'alt'} onClick={() => onArm('alt')} testId="mod-alt" title="Alt" />
-      <KeyButton label="⇧" armed={armed === 'shift'} onClick={() => onArm('shift')} testId="mod-shift" title="Shift" />
-      <KeyButton label="Esc" onClick={() => onSendNamed('Escape')} testId="keypad-esc" />
-      <KeyButton label="Tab" onClick={() => onSendNamed('Tab')} testId="keypad-tab" />
-      <KeyButton label="←" onClick={() => onSendNamed('ArrowLeft')} />
-      <KeyButton label="→" onClick={() => onSendNamed('ArrowRight')} />
-      <KeyButton label="↑" onClick={() => onSendNamed('ArrowUp')} />
-      <KeyButton label="↓" onClick={() => onSendNamed('ArrowDown')} />
-      <KeyButton label="⏎" onClick={() => onSendNamed('Enter')} testId="keypad-enter" />
-      <KeyButton label="⌨" onClick={onExpand} testId="keypad-toggle" title="Show more keys" />
+    <div className="flex flex-col gap-1 p-1">
+      <div className="flex items-center gap-1">
+        <KeyButton label="⌃" armed={armed === 'ctrl'} onClick={() => onArm('ctrl')} testId="mod-ctrl" title="Ctrl" />
+        <KeyButton label="⎇" armed={armed === 'alt'} onClick={() => onArm('alt')} testId="mod-alt" title="Alt" />
+        <KeyButton label="⇧" armed={armed === 'shift'} onClick={() => onArm('shift')} testId="mod-shift" title="Shift" />
+        <KeyButton label="Esc" onClick={() => onSendNamed('Escape')} testId="keypad-esc" />
+        <KeyButton label="Tab" onClick={() => onSendNamed('Tab')} testId="keypad-tab" />
+        <KeyButton label="←" onClick={() => onSendNamed('ArrowLeft')} />
+        <KeyButton label="→" onClick={() => onSendNamed('ArrowRight')} />
+        <KeyButton label="↑" onClick={() => onSendNamed('ArrowUp')} />
+        <KeyButton label="↓" onClick={() => onSendNamed('ArrowDown')} />
+        <KeyButton label="⏎" onClick={() => onSendNamed('Enter')} testId="keypad-enter" />
+        <KeyButton label="⌨" onClick={onExpand} testId="keypad-toggle" title="Show more keys" />
+      </div>
+      {armed && (
+        <div className="flex items-center gap-1 border-t border-[var(--color-border-subtle)] pt-1" data-testid="keypad-armed-row">
+          <span className="px-2 text-xs text-[var(--color-text-secondary)]">{armed.toUpperCase()} armed</span>
+          <KeyButton label="C" onClick={() => onSendWithArmed('c', armed)} testId="quick-c" title={`${armed}+C`} />
+          <KeyButton label="D" onClick={() => onSendWithArmed('d', armed)} testId="quick-d" title={`${armed}+D`} />
+          <KeyButton label="L" onClick={() => onSendWithArmed('l', armed)} testId="quick-l" title={`${armed}+L`} />
+          <KeyButton label="R" onClick={() => onSendWithArmed('r', armed)} testId="quick-r" title={`${armed}+R`} />
+          <KeyButton label="Z" onClick={() => onSendWithArmed('z', armed)} testId="quick-z" title={`${armed}+Z`} />
+          <KeyButton label="⏎" onClick={() => onSendWithArmed('c', armed)} testId="quick-int" title={`Interrupt (${armed}+C)`} />
+        </div>
+      )}
     </div>
   )
 }

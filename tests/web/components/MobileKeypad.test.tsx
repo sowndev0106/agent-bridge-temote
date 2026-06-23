@@ -2,6 +2,9 @@ import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import MobileKeypad from '../../../src/web/components/MobileKeypad'
+import { sendWsMessage } from '../../../src/web/lib/ws'
+
+vi.mock('../../../src/web/lib/ws', () => ({ sendWsMessage: vi.fn() }))
 
 let matches = true
 vi.mock('../../../src/web/lib/useMediaQuery', () => ({
@@ -10,6 +13,7 @@ vi.mock('../../../src/web/lib/useMediaQuery', () => ({
 
 beforeEach(() => {
   matches = true
+  vi.mocked(sendWsMessage).mockClear()
   // @ts-expect-error - stub for navigator.vibrate
   global.navigator.vibrate = vi.fn()
 })
@@ -39,5 +43,25 @@ describe('MobileKeypad', () => {
     expect(screen.getByTestId('mod-alt')).toBeInTheDocument()
     expect(screen.getByTestId('mod-shift')).toBeInTheDocument()
     expect(screen.getByTestId('keypad-toggle')).toBeInTheDocument()
+  })
+
+  it('Tapping the same modifier twice disarms it', () => {
+    render(<MobileKeypad terminalId="t-1" />)
+    const ctrl = screen.getByTestId('mod-ctrl')
+    fireEvent.click(ctrl)
+    fireEvent.click(ctrl)
+    expect(ctrl.className).not.toContain('bg-[var(--color-accent)]')
+  })
+
+  it('Tapping Ctrl then quick-c sends 0x03 via sendWsMessage and disarms', () => {
+    render(<MobileKeypad terminalId="t-99" />)
+    fireEvent.click(screen.getByTestId('mod-ctrl'))
+    expect(screen.getByTestId('keypad-armed-row')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('quick-c'))
+    expect(sendWsMessage).toHaveBeenCalledWith({
+      type: 'terminal.input',
+      payload: { terminalId: 't-99', data: '\x03' }
+    })
+    expect(screen.queryByTestId('keypad-armed-row')).toBeNull()
   })
 })
