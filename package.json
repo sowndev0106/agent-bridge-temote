@@ -1,6 +1,6 @@
 {
   "name": "agent-remote-control",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Launch AI coding agents and surface their remote links in a browser UI",
   "type": "module",
   "license": "MIT",
@@ -69,6 +69,7 @@
   "devDependencies": {
     "@playwright/test": "^1.44.1",
     "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
