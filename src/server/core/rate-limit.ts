@@ -12,6 +12,7 @@ export class RateLimiter {
 
   check(ip: string): boolean {
     const now = Date.now()
+    
     let entry = this.store.get(ip)
     if (!entry || now > entry.resetAt) {
       entry = { count: 0, resetAt: now + this.windowMs }

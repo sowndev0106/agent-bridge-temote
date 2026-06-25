@@ -98,9 +98,24 @@ program
     spawnSync('pm2', ['start', scriptPath, '--name', 'arc', '--interpreter', 'node', '--kill-timeout', '6000'], { stdio: 'inherit' })
     spawnSync('pm2', ['save'], { stdio: 'inherit' })
 
+    // Generate the startup script so arc survives reboots.
+    // pm2 startup prints a "sudo env PATH=..." command; we parse and run it directly
+    // so the user only needs to enter their sudo password once.
+    const startupResult = spawnSync('pm2', ['startup'], { encoding: 'utf8' })
+    const startupOutput = (startupResult.stdout ?? '') + (startupResult.stderr ?? '')
+    const sudoLine = startupOutput.split('\n').find(l => l.trimStart().startsWith('sudo'))
+
+    if (sudoLine) {
+      console.log('\n→ Registering auto-start on reboot (sudo required)...')
+      const [, ...args] = sudoLine.trim().split(/\s+/)
+      spawnSync('sudo', args, { stdio: 'inherit' })
+      spawnSync('pm2', ['save'], { stdio: 'inherit' })
+    }
+
     console.log(`\n✓ Agent Remote Control installed and started.`)
     console.log(`  Web UI: http://localhost:${cfg.port}`)
     console.log('  Run: arc status  |  arc open  |  arc logs')
+
     console.log('\n\x1b[33m⚠  Bound to 0.0.0.0 — accessible from network. Ensure firewall is configured.\x1b[0m')
   })
 
